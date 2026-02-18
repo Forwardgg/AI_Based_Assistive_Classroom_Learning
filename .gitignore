@@ -1,0 +1,26 @@
+# ======================
+# Python / Flask
+# ======================
+backend/venv/
+backend/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+
+# ======================
+# Node / React
+# ======================
+frontend/node_modules/
+frontend/build/
+
+# ======================
+# VS Code
+# ======================
+.vscode/
+
+# ======================
+# OS Files
+# ======================
+.DS_Store
+Thumbs.db
