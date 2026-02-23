@@ -1,0 +1,98 @@
+C:.
+│   README.md
+│   tree.txt
+│   
+├───backend
+│   │   .env
+│   │   requirements.txt
+│   │   run.py
+│   │   
+│   └───app
+│       │   config.py
+│       │   __init__.py
+│       │
+│       ├───models
+│       │   │   course.py
+│       │   │   enrollment.py
+│       │   │   user.py
+│       │   │
+│       │   └───__pycache__
+│       │           course.cpython-313.pyc
+│       │           enrollment.cpython-313.pyc
+│       │           user.cpython-313.pyc
+│       │
+│       ├───routes
+│       │   │   auth_routes.py
+│       │   │   course_routes.py
+│       │   │   user_routes.py
+│       │   │
+│       │   └───__pycache__
+│       │           auth_routes.cpython-313.pyc
+│       │           course_routes.cpython-313.pyc
+│       │           test_routes.cpython-313.pyc
+│       │           user_routes.cpython-313.pyc
+│       │
+│       └───__pycache__
+│               config.cpython-313.pyc
+│               __init__.cpython-313.pyc
+│
+└───frontend
+    │   .env
+    │   .gitignore
+    │   eslint.config.js
+    │   index.html
+    │   package-lock.json
+    │   package.json
+    │   README.md
+    │   vite.config.js
+    │
+    ├───public
+    │       vite.svg
+    │
+    └───src
+        │   main.jsx
+        │   
+        ├───app
+        │       App.jsx
+        │       routes.jsx
+        │
+        ├───components
+        │       PrivateRoute.jsx
+        │
+        ├───features
+        │   ├───auth
+        │   │   │   authAPI.js
+        │   │   │   AuthContext.jsx
+        │   │   │
+        │   │   └───pages
+        │   │           Login.css
+        │   │           Login.jsx
+        │   │           Signup.jsx
+        │   │
+        │   ├───courses
+        │   │   │   courseAPI.js
+        │   │   │
+        │   │   └───pages
+        │   │           CreateCourse.css
+        │   │           CreateCourse.jsx
+        │   │           CreateList.jsx
+        │   │
+        │   ├───dashboard
+        │   │   └───pages
+        │   │           ProfessorDashboard.css
+        │   │           ProfessorDashboard.jsx
+        │   │           StudentDashboard.css
+        │   │           StudentDashboard.jsx
+        │   │
+        │   ├───lectures
+        │   │   │   lectureAPI.js
+        │   │   │
+        │   │   └───pages
+        │   └───users
+        │       │   userAPI.js
+        │       │
+        │       └───pages
+        │               Users.jsx
+        │
+        └───services
+                api.js
