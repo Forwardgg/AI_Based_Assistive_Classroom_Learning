@@ -47,16 +47,21 @@ C:.
     │   vite.config.js
     │
     ├───public
+    │       ChatGPT Image Feb 22, 2026, 09_04_25 PM.png
+    │       full_logo.png
+    │       logo.png
     │       vite.svg
     │
     └───src
         │   main.jsx
-        │   
+        │
         ├───app
         │       App.jsx
-        │       routes.jsx
         │
         ├───components
+        │       DashboardLayout.jsx
+        │       Navbar.css
+        │       Navbar.jsx
         │       PrivateRoute.jsx
         │
         ├───features
@@ -75,7 +80,6 @@ C:.
         │   │   └───pages
         │   │           CreateCourse.css
         │   │           CreateCourse.jsx
-        │   │           CreateList.jsx
         │   │
         │   ├───dashboard
         │   │   └───pages

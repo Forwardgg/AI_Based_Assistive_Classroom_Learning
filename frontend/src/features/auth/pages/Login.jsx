@@ -5,80 +5,34 @@ import { useNavigate, Link } from "react-router-dom";
 import "./Login.css";
 
 const Login = () => {
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [error, setError] = useState("");
 
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-    if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: "",
-      });
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.email) {
-      newErrors.email = "Email is required";
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Email is invalid";
-    }
-    
-    if (!formData.password) {
-      newErrors.password = "Password is required";
-    } else if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
-    }
-    
-    return newErrors;
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (error) setError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const newErrors = validateForm();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    if (!formData.email || !formData.password) {
+      setError("Email and password are required");
       return;
     }
 
     setLoading(true);
-    setErrors({});
-
     try {
       const response = await loginUser(formData);
-      const token = response.data.access_token;
-
-      login(token);
-
-      const decoded = JSON.parse(atob(token.split('.')[1]));
-      const role = decoded.role;
-
-      if (role === "professor") {
-        navigate("/dashboard/professor");
-      } else {
-        navigate("/dashboard/student");
-      }
-
+      login(response.data.access_token);
+      
+      const role = JSON.parse(atob(response.data.access_token.split('.')[1])).role;
+      navigate(role === "professor" ? "/dashboard/professor" : "/dashboard/student");
     } catch (error) {
-      setErrors({
-        general: error.response?.data?.msg || "Invalid email or password"
-      });
+      setError(error.response?.data?.msg || "Invalid email or password");
     } finally {
       setLoading(false);
     }
@@ -86,85 +40,55 @@ const Login = () => {
 
   return (
     <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
-          <h2>Welcome Back</h2>
-          <p>Login</p>
-        </div>
-
-        {errors.general && (
-          <div className="error-message">
-            {errors.general}
+      <div className="login-left">
+        <img src="/full_logo.png" alt="AIBACLS" className="full-logo" />
+      </div>
+      
+      <div className="login-right">
+        <div className="login-card">
+          <div className="login-header">
+            <img src="/logo.png" alt="AIBACLS" className="small-logo" />
+            <h1 className="brand-title">AIBACLS</h1>
+            <p className="welcome-text">Welcome Back</p>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <div className="input-wrapper">
+          {error && <div className="error-message">{error}</div>}
+
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>Email</label>
               <input
                 type="email"
-                id="email"
                 name="email"
-                placeholder="Enter your email"
+                placeholder="e.g. rollno@tezu.ac.in"
                 value={formData.email}
                 onChange={handleChange}
-                className={errors.email ? "error" : ""}
                 disabled={loading}
               />
             </div>
-            {errors.email && <span className="field-error">{errors.email}</span>}
-          </div>
 
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <div className="input-wrapper">
+            <div className="form-group">
+              <label>Password</label>
               <input
-                type={showPassword ? "text" : "password"}
-                id="password"
+                type="password"
                 name="password"
-                placeholder="Enter your password"
+                placeholder="8 character minimum"
                 value={formData.password}
                 onChange={handleChange}
-                className={errors.password ? "error" : ""}
                 disabled={loading}
               />
             </div>
-            {errors.password && <span className="field-error">{errors.password}</span>}
+
+            <button type="submit" className="login-btn" disabled={loading}>
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
+
+          <div className="login-footer">
+            <Link to="/forgot-password">Forgot Password?</Link>
+            <span className="divider">•</span>
+            <Link to="/signup">Create Account</Link>
           </div>
-
-          <div className="form-options">
-            <label className="checkbox-label">
-              <input type="checkbox" /> Remember me
-            </label>
-            <Link to="/forgot-password" className="forgot-link">
-              Forgot Password?
-            </Link>
-          </div>
-
-          <button 
-            type="submit" 
-            className={`login-button ${loading ? "loading" : ""}`}
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <span className="spinner"></span>
-                Logging in...
-              </>
-            ) : (
-              "Login"
-            )}
-          </button>
-        </form>
-
-        <div className="login-footer">
-          <p>
-            Don't have an account?{" "}
-            <Link to="/signup" className="auth-link">
-              Sign up here
-            </Link>
-          </p>
         </div>
       </div>
     </div>

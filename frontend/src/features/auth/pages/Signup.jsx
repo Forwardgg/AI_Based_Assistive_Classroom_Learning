@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { signupUser } from "../authAPI";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import "./Login.css";
 
 const Signup = () => {
@@ -76,95 +76,96 @@ const Signup = () => {
 
   return (
     <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
-          <h2>Create Account</h2>
-          <p>Register as Professor or Student</p>
-        </div>
-
-        {errors.general && (
-          <div className="error-message general-error">
-            {errors.general}
-          </div>
-        )}
-
-        {success && (
-          <div className="success-message">
-            {success}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="login-form">
-
-          <div className="form-group">
-            <label>Name</label>
-            <input
-              type="text"
-              name="name"
-              placeholder="Enter your name"
-              value={formData.name}
-              onChange={handleChange}
-              disabled={loading}
-              className={errors.name ? "error" : ""}
-            />
-            {errors.name && <span className="field-error">{errors.name}</span>}
+      <div className="login-left">
+        <img src="/full_logo.png" alt="AIBACLS" className="full-logo" />
+      </div>
+      
+      <div className="login-right">
+        <div className="login-card signup-card">
+          <div className="login-header">
+            <img src="/logo.png" alt="AIBACLS" className="small-logo" />
+            <h1 className="brand-title">AIBACLS</h1>
+            <p className="welcome-text">Create Account</p>
           </div>
 
-          <div className="form-group">
-            <label>Email</label>
-            <input
-              type="email"
-              name="email"
-              placeholder="Enter your email"
-              value={formData.email}
-              onChange={handleChange}
-              disabled={loading}
-              className={errors.email ? "error" : ""}
-            />
-            {errors.email && <span className="field-error">{errors.email}</span>}
+          {errors.general && (
+            <div className="error-message">
+              {errors.general}
+            </div>
+          )}
+
+          {success && (
+            <div className="success-message">
+              {success}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>Name</label>
+              <input
+                type="text"
+                name="name"
+                placeholder="Full name"
+                value={formData.name}
+                onChange={handleChange}
+                disabled={loading}
+                className={errors.name ? "error-input" : ""}
+              />
+              {errors.name && <span className="field-error">{errors.name}</span>}
+            </div>
+
+            <div className="form-group">
+              <label>Email</label>
+              <input
+                type="email"
+                name="email"
+                placeholder="rollno@tezu.ac.in"
+                value={formData.email}
+                onChange={handleChange}
+                disabled={loading}
+                className={errors.email ? "error-input" : ""}
+              />
+              {errors.email && <span className="field-error">{errors.email}</span>}
+            </div>
+
+            <div className="form-group">
+              <label>Password</label>
+              <input
+                type="password"
+                name="password"
+                placeholder="Minimum 8 characters"
+                value={formData.password}
+                onChange={handleChange}
+                disabled={loading}
+                className={errors.password ? "error-input" : ""}
+              />
+              {errors.password && <span className="field-error">{errors.password}</span>}
+            </div>
+
+            <div className="form-group">
+              <label>Role</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                disabled={loading}
+              >
+                <option value="student">Student</option>
+                <option value="professor">Professor</option>
+              </select>
+            </div>
+
+            <button type="submit" className="login-btn" disabled={loading}>
+              {loading ? "Creating Account..." : "Sign Up"}
+            </button>
+          </form>
+
+          <div className="login-footer">
+            <p>
+              Already have an account? <Link to="/">Sign In</Link>
+            </p>
           </div>
-
-          <div className="form-group">
-            <label>Password</label>
-            <input
-              type="password"
-              name="password"
-              placeholder="Enter your password"
-              value={formData.password}
-              onChange={handleChange}
-              disabled={loading}
-              className={errors.password ? "error" : ""}
-            />
-            {errors.password && <span className="field-error">{errors.password}</span>}
-          </div>
-
-          <div className="form-group">
-            <label>Role</label>
-            <select
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              disabled={loading}
-            >
-              <option value="student">Student</option>
-              <option value="professor">Professor</option>
-            </select>
-          </div>
-
-          <button
-            type="submit"
-            className={`login-button ${loading ? "loading" : ""}`}
-            disabled={loading}
-          >
-            {loading ? "Creating Account..." : "Sign Up"}
-          </button>
-        </form>
-
-        <div className="login-footer">
-          <p>
-            Already have an account?{" "}
-            <a href="/">Login</a>
-          </p>
         </div>
       </div>
     </div>
