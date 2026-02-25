@@ -4,7 +4,7 @@ const DashboardLayout = ({ children }) => {
   return (
     <div>
       <Navbar />
-      <div style={{ padding: "20px" }}>
+      <div style={{ padding: "0.1rem" }}>
         {children}
       </div>
     </div>
