@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { getCourses, joinCourse } from "../../courses/courseAPI";
+import socket from "../../../services/socket";
+import api from "../../../services/api";
 import "./StudentDashboard.css";
 
 const StudentDashboard = () => {
@@ -9,6 +11,14 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
 
+  const [activeSession, setActiveSession] = useState(null);
+  const [sessionStatus, setSessionStatus] = useState(null);
+  const [currentPartition, setCurrentPartition] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(null);
+
+  // =========================
+  // FETCH COURSES
+  // =========================
   const fetchCourses = async () => {
     setLoading(true);
     try {
@@ -25,21 +35,118 @@ const StudentDashboard = () => {
     fetchCourses();
   }, []);
 
-  const handleJoin = async (e) => {
-    e.preventDefault();
-    if (!classCode.trim() || !rollNo.trim()) {
-      alert("Please fill in both fields");
-      return;
+  // =========================
+  // CHECK ACTIVE OR PAUSED SESSION
+  // =========================
+  const checkActiveSession = async (courseId) => {
+    try {
+      const res = await api.get(
+        `/sessions/course/${courseId}/active`
+      );
+
+      if (res.data.exists) {
+        setSessionStatus(res.data.status);
+        return res.data.session_id;
+      }
+
+      return null;
+    } catch {
+      return null;
     }
+  };
+
+  // =========================
+  // JOIN SESSION
+  // =========================
+  const joinSession = (sessionId) => {
+    socket.emit("join_session", { session_id: sessionId });
+    setActiveSession(sessionId);
+  };
+
+  // =========================
+  // SOCKET LISTENERS
+  // =========================
+  useEffect(() => {
+
+    socket.on("partition_started", (data) => {
+      setCurrentPartition(data.partition_index);
+      setSessionStatus("active");
+
+      const seconds =
+        (data.end_minute - data.start_minute) * 60;
+
+      setTimeLeft(seconds);
+    });
+
+    socket.on("session_paused", () => {
+      setSessionStatus("paused");
+    });
+
+    socket.on("session_resumed", () => {
+      setSessionStatus("active");
+    });
+
+    socket.on("session_completed", () => {
+      setSessionStatus("completed");
+      setCurrentPartition(null);
+      setTimeLeft(null);
+      setActiveSession(null);
+    });
+
+    socket.on("session_stopped", () => {
+      setSessionStatus("stopped");
+      setCurrentPartition(null);
+      setTimeLeft(null);
+      setActiveSession(null);
+    });
+
+    return () => {
+      socket.off("partition_started");
+      socket.off("session_paused");
+      socket.off("session_resumed");
+      socket.off("session_completed");
+      socket.off("session_stopped");
+    };
+
+  }, []);
+
+  // =========================
+  // LOCAL COUNTDOWN TIMER
+  // =========================
+  useEffect(() => {
+    if (!timeLeft || sessionStatus !== "active") return;
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timeLeft, sessionStatus]);
+
+  // =========================
+  // JOIN COURSE
+  // =========================
+  const handleJoinCourse = async (e) => {
+    e.preventDefault();
+    if (!classCode.trim() || !rollNo.trim()) return;
 
     setJoining(true);
     try {
-      await joinCourse({ class_code: classCode, roll_no: rollNo });
+      await joinCourse({
+        class_code: classCode,
+        roll_no: rollNo,
+      });
       setClassCode("");
       setRollNo("");
       fetchCourses();
-    } catch (err) {
-      alert("Failed to join course. Check class code and roll number.");
+    } catch {
+      alert("Failed to join course.");
     } finally {
       setJoining(false);
     }
@@ -47,76 +154,67 @@ const StudentDashboard = () => {
 
   return (
     <div className="dashboard">
-      <div className="dashboard-header">
-        <div>
-          <h1>Student Dashboard</h1>
-          <p className="subtitle">Join courses and track your enrolled classes</p>
-        </div>
-        <div className="badge">
-          <span>Enrolled: {courses.length}</span>
-        </div>
-      </div>
+      <h1>Student Dashboard</h1>
 
-      <div className="join-section">
-        <h2>Join a New Course</h2>
-        <form onSubmit={handleJoin} className="join-form">
-          <input
-            type="text"
-            placeholder="Class Code (e.g., CS101-2024)"
-            value={classCode}
-            onChange={(e) => setClassCode(e.target.value)}
-            disabled={joining}
-          />
-          <input
-            type="text"
-            placeholder="Roll Number (e.g., 2024001)"
-            value={rollNo}
-            onChange={(e) => setRollNo(e.target.value)}
-            disabled={joining}
-          />
-          <button type="submit" disabled={joining}>
-            {joining ? "Joining..." : "Join Course"}
-          </button>
-        </form>
-      </div>
+      {/* JOIN COURSE FORM */}
+      <form onSubmit={handleJoinCourse}>
+        <input
+          value={classCode}
+          onChange={(e) => setClassCode(e.target.value)}
+          placeholder="Class Code"
+        />
+        <input
+          value={rollNo}
+          onChange={(e) => setRollNo(e.target.value)}
+          placeholder="Roll No"
+        />
+        <button type="submit">
+          {joining ? "Joining..." : "Join"}
+        </button>
+      </form>
 
-      <div className="courses-section">
-        <h2>Your Enrolled Courses</h2>
+      {/* COURSE LIST */}
+      <div className="courses-grid">
+        {courses.map((course) => (
+          <div key={course.id} className="course-card">
+            <h3>{course.course_name}</h3>
+            <p>{course.semester} {course.year}</p>
 
-        {loading ? (
-          <div className="loading">Loading courses...</div>
-        ) : courses.length === 0 ? (
-          <div className="empty">
-            <p>No enrolled courses</p>
-            <p className="hint">Join a course using the class code above</p>
-          </div>
-        ) : (
-          <div className="courses-grid">
-            {courses.map((course) => (
-              <div key={course.id} className="course-card">
-                <div className="card-header">
-                  <div className="course-icon">
-                    {course.course_name.charAt(0)}
-                  </div>
-                  <span className="status">Enrolled</span>
-                </div>
-                
-                <h3>{course.course_name}</h3>
-                
-                <div className="details">
-                  <p>📅 {course.semester} {course.year}</p>
-                  <p>🔑 {course.class_code}</p>
-                  {course.roll_no && <p>👤 Roll: {course.roll_no}</p>}
-                </div>
+            {activeSession ? (
+              <div className="live-session">
+                <p>Status: {sessionStatus}</p>
 
-                <div className="card-actions">
-                  <button>View</button>
-                  <button>Materials</button>
-                </div>
+                {sessionStatus === "paused" && (
+                  <p>⏸ Session Paused</p>
+                )}
+
+                {currentPartition && (
+                  <p>Partition: {currentPartition}</p>
+                )}
+
+                {timeLeft !== null && sessionStatus === "active" && (
+                  <p>Time Left: {timeLeft}s</p>
+                )}
               </div>
-            ))}
+            ) : (
+              <button
+                onClick={async () => {
+                  const sessionId =
+                    await checkActiveSession(course.id);
+
+                  if (!sessionId) {
+                    alert("No live session right now");
+                    return;
+                  }
+
+                  joinSession(sessionId);
+                }}
+              >
+                Join Live Session
+              </button>
+            )}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
