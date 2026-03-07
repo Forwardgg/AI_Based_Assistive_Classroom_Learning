@@ -1,3 +1,5 @@
+// frontend/src/features/courses/pages/createCourse.jsx
+
 import { useState } from "react";
 import { createCourse } from "../courseAPI";
 import "./CreateCourse.css";

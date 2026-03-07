@@ -1,7 +1,16 @@
-import { io } from "socket.io-client";
+import { io } from "socket.io-client"
 
 const socket = io("http://localhost:5000", {
-  transports: ["websocket"],
-});
+  transports: ["polling", "websocket"],   // allow fallback
+  autoConnect: true
+})
 
-export default socket;
+socket.on("connect", () => {
+  console.log("Socket connected:", socket.id)
+})
+
+socket.on("disconnect", () => {
+  console.log("Socket disconnected")
+})
+
+export default socket

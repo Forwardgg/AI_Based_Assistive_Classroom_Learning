@@ -1,3 +1,5 @@
+// frontend/src/features/lectures/pages/SessionModal.jsx
+
 import { useState } from "react";
 import "./SessionModal.css";
 
@@ -22,7 +24,7 @@ const SessionModal = ({ courseId, onClose, onCreate }) => {
       return;
     }
 
-    const partitionLength = duration / partitions;
+    const partitionLength = Math.floor(duration / partitions);
     const partitionArray = [];
 
     for (let i = 0; i < partitions; i++) {

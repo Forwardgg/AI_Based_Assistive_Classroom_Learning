@@ -1,3 +1,4 @@
+# backend/app/models/session_partition.py
 from app import db
 
 class SessionPartition(db.Model):

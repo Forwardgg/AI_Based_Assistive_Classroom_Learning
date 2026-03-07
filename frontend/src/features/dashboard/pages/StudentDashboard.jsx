@@ -1,3 +1,5 @@
+// frontend/src/features/dashboard/pages/StudentDashboard.jsx
+
 import { useEffect, useState } from "react";
 import { getCourses, joinCourse } from "../../courses/courseAPI";
 import socket from "../../../services/socket";

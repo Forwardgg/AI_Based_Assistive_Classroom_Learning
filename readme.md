@@ -1,83 +1,200 @@
-# AIBACLS – Smart Classroom AI System
+# AIBACLS – AI-Based Adaptive Classroom Lecture System
 
 ## Project Overview
 
-AIBACLS (AI-Based Automated Classroom Learning System) is a smart classroom platform designed to enhance teaching and learning using AI-driven automation.
+AIBACLS (AI-Based Adaptive Classroom Lecture System) is a full-stack web application designed to enhance classroom lectures using AI-assisted analysis and automation.
 
-The system integrates a frontend interface with a backend API to provide:
+The system allows professors to manage courses, conduct structured lecture sessions, and eventually generate intelligent learning insights based on classroom interactions.
 
-- Classroom management
-- AI-powered assistance
-- Secure backend architecture
-- Scalable project structure for future enhancements
+The long-term objective of the system is to create an adaptive classroom intelligence pipeline:
+
+Lecture Audio → Transcript → Cleaned Text → AI Quiz → Student Answers → Analytics → Weak Topic Detection → Lecture Summary → PDF Report
+
+The system is currently developed using a **Waterfall development methodology**, where each phase builds upon the stable completion of the previous phase.
 
 ---
 
-# Sprint 1 Completion
+# Development Methodology
 
-Sprint 1 focused on building the foundation of the system:
+This project follows the **Waterfall Software Development Model**.
 
-- Project initialization (Frontend + Backend)
-- Git repository setup
-- Base folder structure creation
-- Backend server configuration
-- Frontend application setup
-- Initial API connectivity
-- Basic documentation
+Each phase is implemented sequentially to ensure system stability before introducing AI components.
 
-Sprint 1 establishes the core development environment for future feature expansion.
+Development Phases:
+
+1. System Foundation & Database
+2. Classroom Session Architecture
+3. Speech-to-Text Pipeline
+4. AI Processing Layer
+5. Real-Time Student Interaction
+6. Analytics & Intelligence
+7. Testing & Optimization
+8. Documentation & Submission
+
+---
+
+# Completed Phases
+
+## Phase 1 – System Foundation & Database
+
+This phase established the core backend and frontend architecture.
+
+Implemented components:
+
+* Flask backend initialization
+* React frontend setup
+* PostgreSQL database integration
+* SQLAlchemy ORM configuration
+* JWT-based authentication system
+* User registration and login
+* Role-based user model (Professor / Student)
+
+### Core Models Implemented
+
+* User
+* Course
+* Enrollment
+
+### Features
+
+Professors can:
+
+* Create courses
+* Generate unique class codes
+
+Students can:
+
+* Join courses using class codes
+
+This phase establishes the foundational classroom management system.
+
+---
+
+## Phase 2 – Session & Partition System
+
+This phase introduced the classroom lecture session architecture.
+
+The system models a lecture as a structured session divided into time partitions.
+
+### Core Models Added
+
+* Session
+* SessionPartition
+
+### Features Implemented
+
+Professors can:
+
+* Start lecture sessions
+* Configure session duration
+* Define lecture partitions
+* Control session flow
+
+The system tracks session state and partition progress, preparing the architecture for real-time classroom interaction and AI processing.
 
 ---
 
 # Project Structure
 
 ```
-AIBACLS/
-│
-├── frontend/              # Frontend application
-│   ├── src/
-│   ├── public/
-│   ├── package.json
-│   └── ...
-│
-├── backend/               # Backend server
-│   ├── routes/
-│   ├── controllers/
-│   ├── models/
-│   ├── server.js
-│   └── ...
-│
-├── .gitignore
+AIBACLS
+├── ProjectContext.md
 ├── README.md
-└── package.json (if root-based)
+├── recordings
+├── whisper_env
+├── backend
+│   ├── app
+│   │   ├── __init__.py
+│   │   ├── config.py
+│   │   ├── models
+│   │   │   ├── user.py
+│   │   │   ├── course.py
+│   │   │   ├── enrollment.py
+│   │   │   ├── session.py
+│   │   │   └── session_partition.py
+│   │   ├── routes
+│   │   │   ├── auth_routes.py
+│   │   │   ├── course_routes.py
+│   │   │   ├── session_routes.py
+│   │   │   └── user_routes.py
+│   │   ├── services
+│   │   └── sockets
+│   ├── requirements.txt
+│   └── run.py
+│
+├── frontend
+│   ├── public
+│   ├── src
+│   │   ├── app
+│   │   │   └── App.jsx
+│   │   ├── components
+│   │   │   ├── DashboardLayout.jsx
+│   │   │   ├── Navbar.jsx
+│   │   │   └── PrivateRoute.jsx
+│   │   ├── features
+│   │   │   ├── auth
+│   │   │   ├── courses
+│   │   │   ├── dashboard
+│   │   │   ├── lectures
+│   │   │   └── users
+│   │   ├── services
+│   │   │   ├── api.js
+│   │   │   └── socket.js
+│   │   └── main.jsx
+│   └── vite.config.js
 ```
+
+The system uses a **modular backend architecture** and **feature-based frontend structure** to maintain scalability and separation of concerns.
 
 ---
 
-# Tech Stack
+# Technology Stack
 
 ## Frontend
-- React.js
-- HTML5
-- CSS3
-- JavaScript (ES6+)
+
+* React (Vite)
+* JavaScript (ES6+)
+* HTML5
+* CSS3
+* Axios
+* React Router
 
 ## Backend
-- Node.js
-- Express.js
+
+* Python
+* Flask
+* Flask-JWT-Extended
+* Flask-CORS
+* SQLAlchemy
+
+## Database
+
+* PostgreSQL
+
+## Real-Time Communication
+
+* Socket.IO
+
+## AI Components (Planned)
+
+* Whisper (Speech-to-Text)
+* LLM APIs for transcript processing
+* AI-generated quizzes
+* Learning analytics
 
 ## Version Control
-- Git
-- GitHub
+
+* Git
+* GitHub
 
 ---
 
 # Installation & Setup
 
-## 1. Clone the Repository
+## 1. Clone Repository
 
 ```bash
-git clone <your-repository-url>
+git clone <repository-url>
 cd AIBACLS
 ```
 
@@ -85,13 +202,17 @@ cd AIBACLS
 
 ## 2. Backend Setup
 
+Create a virtual environment and install dependencies.
+
 ```bash
 cd backend
-npm install
-npm start
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python run.py
 ```
 
-Backend will run on:
+Backend runs on:
 
 ```
 http://localhost:5000
@@ -104,77 +225,84 @@ http://localhost:5000
 ```bash
 cd frontend
 npm install
-npm start
+npm run dev
 ```
 
-Frontend will run on:
+Frontend runs on:
 
 ```
-http://localhost:3000
-```
-
----
-
-# Environment Variables (Backend)
-
-Create a `.env` file inside the `backend` folder:
-
-```
-PORT=5000
-MONGO_URI=your_database_url
-JWT_SECRET=your_secret_key
+http://localhost:5173
 ```
 
 ---
 
-# Testing the Application
+# Environment Variables
 
-1. Start backend server  
-2. Start frontend server  
-3. Verify API connection  
-4. Check browser console for errors  
-5. Ensure endpoints respond correctly  
+Create a `.env` file inside the backend folder.
 
----
+Example:
 
-# Git Workflow
-
-Common Git commands used in this project:
-
-```bash
-git status
-git add .
-git commit -m "Your commit message"
-git push origin main
+```
+DATABASE_URL=postgresql://user:password@localhost/aibacls
+JWT_SECRET_KEY=your_secret_key
+JWT_ACCESS_TOKEN_EXPIRES=3600
 ```
 
 ---
 
-# Future Improvements (Sprint 2+)
+# Current System Capabilities
 
-- User Authentication (JWT)
-- MongoDB Database Integration
-- AI Model Integration
-- Role-Based Access (Teacher / Student / Admin)
-- Deployment (Render / Vercel / AWS)
-- Analytics Dashboard
+The system currently supports:
+
+* User authentication
+* Role-based access control
+* Course creation
+* Course enrollment
+* Lecture session creation
+* Lecture partition management
+
+The architecture is now ready for **Phase 3 – Speech-to-Text integration**.
+
+---
+
+# Future Phases
+
+## Phase 3 – Speech-to-Text Pipeline
+
+* MediaRecorder audio capture
+* Whisper integration
+* Transcript segment storage
+* Partition-based transcript generation
+
+## Phase 4 – AI Processing Layer
+
+* Transcript cleaning
+* Lecture summary generation
+* AI quiz generation
+
+## Phase 5 – Real-Time Quiz System
+
+* Live quiz distribution
+* Student answer collection
+* Immediate evaluation
+
+## Phase 6 – Analytics Dashboard
+
+* Class performance analytics
+* Weak topic detection
+* Student learning insights
 
 ---
 
 # Author
 
-Rohit Roy  
-Project: AIBACLS – Smart Classroom AI System  
-Tezpur University  
+Rohit Roy
+Tezpur University
+
+Project: **AIBACLS – AI-Based Adaptive Classroom Lecture System**
 
 ---
 
 # License
 
-This project is developed for academic and educational purposes.
-
----
-
-# Contribution
-
-Currently under active development. Contributions and improvements will be added in future sprints.
+This project is developed for **academic and research purposes**.

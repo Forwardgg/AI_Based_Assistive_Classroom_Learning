@@ -1,3 +1,5 @@
+// frontend/src/features/auth/AuthContext.jsx
+
 import { createContext, useState, useEffect, useRef } from "react";
 import { jwtDecode } from "jwt-decode";
 

@@ -1,8 +1,8 @@
 # backend/app/config.py
 
-import os
-from dotenv import load_dotenv
-from datetime import timedelta
+import os # access env var
+from dotenv import load_dotenv # load env vars
+from datetime import timedelta # for JWT expir
 
 load_dotenv()
 
@@ -14,11 +14,11 @@ class Config:
 
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
-        seconds=int(os.getenv("JWT_EXPIRES", 86400))  # default = 1 day
+        seconds=int(os.getenv("JWT_EXPIRES", 86400))  # 24 hr
     )
 
     SQLALCHEMY_DATABASE_URI = (
         f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
     )
 
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_TRACK_MODIFICATIONS = False # event tracking for memory savings

@@ -1,3 +1,5 @@
+// frontend/src/features/lectures/sessionApi.js
+
 import api from "../../services/api";
 
 export const startSession = (sessionId) =>

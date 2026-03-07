@@ -1,3 +1,5 @@
+// frontend/src/features/courses/courseAPI.js
+
 import API from "../../services/api";
 
 export const createCourse = (data) => {

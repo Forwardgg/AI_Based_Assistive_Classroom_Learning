@@ -1,3 +1,5 @@
+// frontend/src/features/auth/pages/signup.jsx
+
 import { useState } from "react";
 import { signupUser } from "../authAPI";
 import { useNavigate, Link } from "react-router-dom";
