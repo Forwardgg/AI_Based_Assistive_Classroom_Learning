@@ -1,11 +1,11 @@
-# backend/app/routes/transcript_routes.py
-
 import os
 import uuid
+import subprocess
+import threading
 
 from flask import Blueprint, request, jsonify
 
-from app import socketio
+from app import socketio, create_app
 from app.models.session import Session
 from app.models.session_partition import SessionPartition
 from app.services.whisper_service import transcribe_audio
@@ -18,6 +18,68 @@ UPLOAD_FOLDER = "recordings"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
+# ====================================
+# BACKGROUND AUDIO PROCESSING FUNCTION
+# ====================================
+def process_audio_chunk(filepath, partition_id, session_id):
+
+    app = create_app()
+
+    with app.app_context():
+
+        wav_path = filepath.replace(".webm", ".wav")
+
+        try:
+
+            subprocess.run([
+                "ffmpeg",
+                "-y",
+                "-i", filepath,
+                "-ar", "16000",
+                "-ac", "1",
+                "-c:a", "pcm_s16le",
+                wav_path
+            ], capture_output=True)
+
+            if not os.path.exists(wav_path):
+                print("FFmpeg failed for chunk:")
+                print(result.stderr.decode())
+                return
+
+            text = transcribe_audio(wav_path)
+
+            segment = store_segment(partition_id, text)
+
+            print("\n==============================")
+            print("TRANSCRIPT SEGMENT")
+            print(text)
+            print("==============================\n")
+
+            socketio.emit(
+                "transcript_segment",
+                {
+                    "partition_id": partition_id,
+                    "text": text
+                },
+                room=f"session_{session_id}"
+            )
+
+        except Exception as e:
+
+            print("Whisper skipped bad audio chunk:", e)
+
+        finally:
+
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+            if os.path.exists(wav_path):
+                os.remove(wav_path)
+
+
+# ====================================
+# UPLOAD AUDIO CHUNK
+# ====================================
 @transcript_bp.route("/upload", methods=["POST"])
 def upload_audio():
 
@@ -29,48 +91,36 @@ def upload_audio():
     session_id = request.form.get("session_id")
 
     if not session_id or session_id == "null":
-        print("❌ Invalid session_id")
+        print("Invalid session_id")
         return jsonify({"error": "invalid session_id"}), 400
 
     try:
         session_id = int(session_id)
     except ValueError:
-        print("❌ session_id not an integer")
         return jsonify({"error": "invalid session_id"}), 400
 
     if "audio" not in request.files:
-        print("❌ Audio file missing")
         return jsonify({"error": "audio required"}), 400
 
     audio = request.files["audio"]
 
-    # -------------------------
-    # Validate session
-    # -------------------------
     session = Session.query.get(session_id)
 
     print("SESSION:", session)
 
     if not session:
-        print("❌ Session not found")
         return jsonify({"error": "session not found"}), 404
 
     print("CURRENT PARTITION INDEX:", session.current_partition_index)
 
-    # -------------------------
-    # Find partition
-    # -------------------------
-
     partition = None
 
-    # Try current partition first
     if session.current_partition_index:
         partition = SessionPartition.query.filter_by(
             session_id=session_id,
             partition_index=session.current_partition_index
         ).first()
 
-    # Fallback: if session already finished, attach to last partition
     if not partition:
         partition = (
             SessionPartition.query
@@ -82,12 +132,8 @@ def upload_audio():
     print("PARTITION:", partition)
 
     if not partition:
-        print("❌ No partition found")
         return jsonify({"error": "no partition found"}), 400
 
-    # -------------------------
-    # Save audio file
-    # -------------------------
     ext = "webm"
     if audio.filename and "." in audio.filename:
         ext = audio.filename.split(".")[-1]
@@ -97,49 +143,13 @@ def upload_audio():
 
     audio.save(filepath)
 
-    # -------------------------
-    # Transcribe audio
-    # -------------------------
-    try:
-        text = transcribe_audio(filepath)
-    except Exception as e:
-        os.remove(filepath)
-        print("Whisper skipped bad audio chunk", e)
-        return jsonify({
-            "message": "invalid audio chunk skipped"
-        }), 200
-
-    os.remove(filepath)
-
-    # -------------------------
-    # Store transcript segment
-    # -------------------------
-    segment = store_segment(partition.id, text)
-
-    # -------------------------
-    # Debug log (terminal)
-    # -------------------------
-    print("\n==============================")
-    print("TRANSCRIPT SEGMENT")
-    print(text)
-    print("==============================\n")
-
-    # -------------------------
-    # Send transcript to frontend
-    # -------------------------
-    socketio.emit(
-        "transcript_segment",
-        {
-            "partition_id": partition.id,
-            "text": text
-        },
-        room=f"session_{session_id}"
+    thread = threading.Thread(
+        target=process_audio_chunk,
+        args=(filepath, partition.id, session_id)
     )
 
-    # -------------------------
-    # Response
-    # -------------------------
+    thread.start()
+
     return jsonify({
-        "segment": segment.to_dict(),
-        "text": text
+        "message": "chunk received"
     })

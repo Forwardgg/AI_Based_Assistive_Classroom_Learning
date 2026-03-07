@@ -1,8 +1,7 @@
-// frontend/src/features/lectures/recordingService.js
-
 let mediaRecorder = null
 let stream = null
 let currentSessionId = null
+let chunkTimer = null
 
 export async function startRecording(sessionId) {
 
@@ -30,10 +29,31 @@ export async function startRecording(sessionId) {
 
     }
 
-    // emit chunk every 10 seconds
-    mediaRecorder.start(10000)
+    mediaRecorder.onstop = () => {
+
+        if (!currentSessionId) return
+
+        // restart recorder immediately after stopping
+        mediaRecorder.start()
+
+    }
+
+    // start recording
+    mediaRecorder.start()
+
+    // create full WebM file every 10 seconds
+    chunkTimer = setInterval(() => {
+
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+
+            mediaRecorder.stop()
+
+        }
+
+    }, 10000)
 
 }
+
 
 async function uploadChunk(blob, sessionId) {
 
@@ -52,7 +72,9 @@ async function uploadChunk(blob, sessionId) {
         const data = await res.json()
 
         if (data.text) {
+
             console.log("TRANSCRIPT:", data.text)
+
         }
 
     } catch (err) {
@@ -63,11 +85,17 @@ async function uploadChunk(blob, sessionId) {
 
 }
 
+
 export function stopRecording() {
 
     console.log("Stopping recording")
 
     currentSessionId = null
+
+    if (chunkTimer) {
+        clearInterval(chunkTimer)
+        chunkTimer = null
+    }
 
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
         mediaRecorder.stop()

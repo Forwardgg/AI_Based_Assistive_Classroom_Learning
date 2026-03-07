@@ -23,7 +23,9 @@ const ProfessorDashboard = () => {
   const [showModal, setShowModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
 
+  // =========================
   // FETCH COURSES
+  // =========================
   const fetchCourses = async () => {
     setLoading(true);
     try {
@@ -53,20 +55,29 @@ const ProfessorDashboard = () => {
       const seconds = (data.end_minute - data.start_minute) * 60;
       setTimeLeft(seconds);
 
-      startRecording(data.session_id)
+      startRecording(data.session_id);
 
     });
 
     socket.on("partition_finished", () => {
 
-  console.log("Partition finished")
+      console.log("Partition finished");
 
-  stopRecording()
+      stopRecording();
 
-  setCurrentPartition(null)
-  setTimeLeft(null)
+      setCurrentPartition(null);
+      setTimeLeft(null);
 
-})
+    });
+
+    // =========================
+    // TRANSCRIPT STREAM
+    // =========================
+    socket.on("transcript_segment", (data) => {
+
+      console.log("TRANSCRIPT:", data.text);
+
+    });
 
     socket.on("session_paused", () => {
       setSessionStatus("paused");
@@ -78,18 +89,18 @@ const ProfessorDashboard = () => {
 
     socket.on("session_completed", () => {
 
-    console.log("Session completed")
+      console.log("Session completed");
 
-      stopRecording()
+      stopRecording();
 
-      setSessionStatus("completed")
-      setCurrentPartition(null)
-      setTimeLeft(null)
-      setActiveSession(null)
+      setSessionStatus("completed");
+      setCurrentPartition(null);
+      setTimeLeft(null);
+      setActiveSession(null);
 
-      fetchCourses()   // refresh dashboard
+      fetchCourses();
 
-    })    
+    });
 
     socket.on("session_stopped", () => {
 
@@ -108,6 +119,7 @@ const ProfessorDashboard = () => {
 
       socket.off("partition_started");
       socket.off("partition_finished");
+      socket.off("transcript_segment");
       socket.off("session_paused");
       socket.off("session_resumed");
       socket.off("session_completed");
@@ -150,25 +162,25 @@ const ProfessorDashboard = () => {
   // =========================
   const handleCreateAndStart = async (sessionData) => {
 
-  try {
+    try {
 
-    const createRes = await api.post("/sessions", sessionData)
-    const sessionId = createRes.data.session.id
+      const createRes = await api.post("/sessions", sessionData);
+      const sessionId = createRes.data.session.id;
 
-    setActiveSession(sessionId)
+      setActiveSession(sessionId);
 
-    socket.emit("join_session", { session_id: sessionId })
+      socket.emit("join_session", { session_id: sessionId });
 
-    await api.post(`/sessions/${sessionId}/start`)
+      await api.post(`/sessions/${sessionId}/start`);
 
-    setSessionStatus("active")
-    setShowModal(false)
+      setSessionStatus("active");
+      setShowModal(false);
 
-  } catch (err) {
-    console.error("Failed to start session", err)
-  }
+    } catch (err) {
+      console.error("Failed to start session", err);
+    }
 
-}
+  };
 
   // =========================
   // CONTROLS
@@ -296,10 +308,6 @@ const ProfessorDashboard = () => {
         )}
 
       </div>
-
-      {/* =========================
-          SESSION MODAL
-      ========================= */}
 
       {showModal && (
         <SessionModal
