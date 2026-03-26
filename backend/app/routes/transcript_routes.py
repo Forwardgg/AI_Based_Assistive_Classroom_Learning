@@ -1,11 +1,13 @@
+# backend/app/routes/transcript_routes.py
 import os
 import uuid
 import subprocess
-import threading
+import traceback
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
+from concurrent.futures import ThreadPoolExecutor
 
-from app import socketio, create_app
+from app import socketio
 from app.models.session import Session
 from app.models.session_partition import SessionPartition
 from app.services.whisper_service import transcribe_audio
@@ -17,13 +19,14 @@ transcript_bp = Blueprint("transcripts", __name__)
 UPLOAD_FOLDER = "recordings"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# THREAD POOL (prevents unlimited threads)
+executor = ThreadPoolExecutor(max_workers=4)
 
-# ====================================
-# BACKGROUND AUDIO PROCESSING FUNCTION
-# ====================================
-def process_audio_chunk(filepath, partition_id, session_id):
 
-    app = create_app()
+# =========================
+# BACKGROUND AUDIO PROCESSING
+# =========================
+def process_audio_chunk(app, filepath, partition_id, session_id):
 
     with app.app_context():
 
@@ -31,18 +34,21 @@ def process_audio_chunk(filepath, partition_id, session_id):
 
         try:
 
-            subprocess.run([
-                "ffmpeg",
-                "-y",
-                "-i", filepath,
-                "-ar", "16000",
-                "-ac", "1",
-                "-c:a", "pcm_s16le",
-                wav_path
-            ], capture_output=True)
+            result = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i", filepath,
+                    "-ar", "16000",
+                    "-ac", "1",
+                    "-c:a", "pcm_s16le",
+                    wav_path
+                ],
+                capture_output=True
+            )
 
             if not os.path.exists(wav_path):
-                print("FFmpeg failed for chunk:")
+                print("FFmpeg failed:")
                 print(result.stderr.decode())
                 return
 
@@ -64,9 +70,9 @@ def process_audio_chunk(filepath, partition_id, session_id):
                 room=f"session_{session_id}"
             )
 
-        except Exception as e:
-
-            print("Whisper skipped bad audio chunk:", e)
+        except Exception:
+            print("Audio processing error:")
+            traceback.print_exc()
 
         finally:
 
@@ -77,9 +83,9 @@ def process_audio_chunk(filepath, partition_id, session_id):
                 os.remove(wav_path)
 
 
-# ====================================
+# =========================
 # UPLOAD AUDIO CHUNK
-# ====================================
+# =========================
 @transcript_bp.route("/upload", methods=["POST"])
 def upload_audio():
 
@@ -91,7 +97,6 @@ def upload_audio():
     session_id = request.form.get("session_id")
 
     if not session_id or session_id == "null":
-        print("Invalid session_id")
         return jsonify({"error": "invalid session_id"}), 400
 
     try:
@@ -111,28 +116,22 @@ def upload_audio():
     if not session:
         return jsonify({"error": "session not found"}), 404
 
+    # ✅ ONLY allow when partition is active
+    # This still allows final chunk (since partition exists briefly after stop)
+    if not session.current_partition_index:
+        return jsonify({"error": "no active partition"}), 400
+
     print("CURRENT PARTITION INDEX:", session.current_partition_index)
 
-    partition = None
-
-    if session.current_partition_index:
-        partition = SessionPartition.query.filter_by(
-            session_id=session_id,
-            partition_index=session.current_partition_index
-        ).first()
-
-    if not partition:
-        partition = (
-            SessionPartition.query
-            .filter_by(session_id=session_id)
-            .order_by(SessionPartition.partition_index.desc())
-            .first()
-        )
+    partition = SessionPartition.query.filter_by(
+        session_id=session_id,
+        partition_index=session.current_partition_index
+    ).first()
 
     print("PARTITION:", partition)
 
     if not partition:
-        return jsonify({"error": "no partition found"}), 400
+        return jsonify({"error": "no active partition"}), 400
 
     ext = "webm"
     if audio.filename and "." in audio.filename:
@@ -143,12 +142,16 @@ def upload_audio():
 
     audio.save(filepath)
 
-    thread = threading.Thread(
-        target=process_audio_chunk,
-        args=(filepath, partition.id, session_id)
-    )
+    app = current_app._get_current_object()
 
-    thread.start()
+    # submit job to thread pool instead of spawning unlimited threads
+    executor.submit(
+        process_audio_chunk,
+        app,
+        filepath,
+        partition.id,
+        session_id
+    )
 
     return jsonify({
         "message": "chunk received"

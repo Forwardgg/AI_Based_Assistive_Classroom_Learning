@@ -1,5 +1,8 @@
 # backend/run.py
 
+import eventlet
+eventlet.monkey_patch()   # 🔥 MUST be first
+
 from app import create_app, socketio
 
 app = create_app()

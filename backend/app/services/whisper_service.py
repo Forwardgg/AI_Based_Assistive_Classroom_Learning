@@ -3,7 +3,6 @@
 import threading
 from faster_whisper import WhisperModel
 
-
 print("Loading Whisper model (small, int8)...")
 
 model = WhisperModel(

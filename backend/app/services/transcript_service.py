@@ -1,5 +1,3 @@
-# backend/app/services/transcript_service.py
-
 from app import db
 from app.models.transcript_segment import TranscriptSegment
 from app.models.transcript import Transcript
@@ -10,64 +8,88 @@ from app.models.transcript import Transcript
 # =========================
 def store_segment(partition_id, text):
 
-    # Find last segment index
-    last_segment = (
-        TranscriptSegment.query
-        .filter_by(partition_id=partition_id)
-        .order_by(TranscriptSegment.segment_index.desc())
-        .first()
-    )
+    try:
 
-    next_index = 0
-    if last_segment:
-        next_index = last_segment.segment_index + 1
+        # generate next index safely
+        next_index = TranscriptSegment.query.filter_by(
+            partition_id=partition_id
+        ).count()
 
-    segment = TranscriptSegment(
-        partition_id=partition_id,
-        segment_index=next_index,
-        text=text
-    )
+        segment = TranscriptSegment(
+            partition_id=partition_id,
+            segment_index=next_index,
+            text=text
+        )
 
-    db.session.add(segment)
-    db.session.commit()
+        db.session.add(segment)
+        db.session.commit()
 
-    return segment
+        return segment
+
+    except Exception as e:
+
+        db.session.rollback()
+        print("Segment DB insert failed:", e)
+        raise
 
 
 # =========================
-# FINALIZE PARTITION
+# FINALIZE PARTITION TRANSCRIPT
 # =========================
 def finalize_partition_transcript(partition_id):
 
-    existing = Transcript.query.filter_by(
-        partition_id=partition_id
-    ).first()
+    try:
 
-    if existing:
-        return existing
+        # prevent duplicate transcripts
+        existing = Transcript.query.filter_by(
+            partition_id=partition_id
+        ).first()
 
-    segments = (
-        TranscriptSegment.query
-        .filter_by(partition_id=partition_id)
-        .order_by(TranscriptSegment.segment_index)
-        .all()
-    )
+        if existing:
+            return existing
 
-    if not segments:
-        return None
+        segments = (
+            TranscriptSegment.query
+            .filter_by(partition_id=partition_id)
+            .order_by(TranscriptSegment.segment_index)
+            .all()
+        )
 
-    full_text = " ".join(
-        s.text.strip()
-        for s in segments
-        if s.text and s.text.strip()
-    )
+        if not segments:
+            return None
 
-    transcript = Transcript(
-        partition_id=partition_id,
-        transcript_text=full_text
-    )
+        # combine segment text
+        full_text = " ".join(
+            s.text.strip()
+            for s in segments
+            if s.text and s.text.strip()
+        )
 
-    db.session.add(transcript)
-    db.session.commit()
+        # =========================
+        # CLEAN TRANSCRIPT TEXT
+        # =========================
 
-    return transcript
+        # remove newlines
+        full_text = full_text.replace("\n", " ")
+
+        # remove repeated spaces
+        full_text = " ".join(full_text.split())
+
+        # optional: trim very long whitespace
+        full_text = full_text.strip()
+
+        transcript = Transcript(
+            partition_id=partition_id,
+            transcript_text=full_text
+        )
+
+        db.session.add(transcript)
+        db.session.commit()
+
+        return transcript
+
+    except Exception as e:
+
+        db.session.rollback()
+        print("Transcript finalize failed:", e)
+        raise

@@ -35,6 +35,8 @@ class Session(db.Model):
         cascade="all, delete-orphan",
         order_by="SessionPartition.partition_index"
     )
+    partition_start_time = db.Column(db.Integer)
+    partition_end_time = db.Column(db.Integer)
 
     def to_dict(self):
         return {

@@ -1,6 +1,6 @@
 // frontend/src/features/dashboard/pages/ProfessorDashboard.jsx
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getCourses } from "../../courses/courseAPI";
 import CreateCourse from "../../courses/pages/CreateCourse";
 import socket from "../../../services/socket";
@@ -19,9 +19,12 @@ const ProfessorDashboard = () => {
   const [currentPartition, setCurrentPartition] = useState(null);
 
   const [timeLeft, setTimeLeft] = useState(null);
+  const [partitionEndTime, setPartitionEndTime] = useState(null);
 
   const [showModal, setShowModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
+
+  const intervalRef = useRef(null);
 
   // =========================
   // FETCH COURSES
@@ -43,122 +46,155 @@ const ProfessorDashboard = () => {
   }, []);
 
   // =========================
+  // SYNC SESSION
+  // =========================
+  const syncSession = async () => {
+
+    if (!activeSession) return;
+
+    console.log("[SYNC START]", activeSession);
+
+    try {
+      const res = await api.get(`/sessions/${activeSession}`);
+      const session = res.data;
+
+      console.log("[SYNC DATA]", session);
+
+      socket.emit("join_session", session.id);
+
+      if (session.status === "completed") {
+
+        console.log("[SYNC] Session already completed");
+
+        stopRecording();
+
+        setSessionStatus("completed");
+        setCurrentPartition(null);
+        setPartitionEndTime(null);
+        setTimeLeft(null);
+        setActiveSession(null);
+
+        fetchCourses();
+        return;
+      }
+
+      if (session.status === "active") {
+
+        setSessionStatus("active");
+        setCurrentPartition(session.current_partition_index);
+
+        if (session.end_time) {
+          setPartitionEndTime(session.end_time);
+        }
+
+        // 🔥 delay restart to avoid recorder crash
+        setTimeout(() => {
+          console.log("[SYNC → REC START]");
+          startRecording(session.id);
+        }, 500);
+      }
+
+    } catch (err) {
+      console.error("Sync failed", err);
+    }
+  };
+
+  // =========================
   // SOCKET LISTENERS
   // =========================
   useEffect(() => {
 
+    socket.on("connect", () => {
+      console.log("[SOCKET CONNECTED → SYNC]");
+      syncSession();
+    });
+
     socket.on("partition_started", (data) => {
+
+      console.log("[PARTITION START]", {
+        partition: data.partition_index,
+        time: Date.now()
+      });
 
       setCurrentPartition(data.partition_index);
       setSessionStatus("active");
+      setPartitionEndTime(data.end_time);
 
-      const seconds = (data.end_minute - data.start_minute) * 60;
-      setTimeLeft(seconds);
-
-      startRecording(data.session_id);
-
+      // 🔥 CRITICAL FIX: delayed restart
+      setTimeout(() => {
+        console.log("[REC START AFTER DELAY]");
+        startRecording(data.session_id);
+      }, 500);
     });
 
     socket.on("partition_finished", () => {
-
-      console.log("Partition finished");
-
+      console.log("[PARTITION FINISHED → STOP REC]", Date.now());
       stopRecording();
-
-      setCurrentPartition(null);
-      setTimeLeft(null);
-
-    });
-
-    // =========================
-    // TRANSCRIPT STREAM
-    // =========================
-    socket.on("transcript_segment", (data) => {
-
-      console.log("TRANSCRIPT:", data.text);
-
-    });
-
-    socket.on("session_paused", () => {
-      setSessionStatus("paused");
-    });
-
-    socket.on("session_resumed", () => {
-      setSessionStatus("active");
     });
 
     socket.on("session_completed", () => {
 
-      console.log("Session completed");
+      console.log("[SESSION COMPLETED]", Date.now());
 
       stopRecording();
 
       setSessionStatus("completed");
       setCurrentPartition(null);
+      setPartitionEndTime(null);
       setTimeLeft(null);
       setActiveSession(null);
 
       fetchCourses();
-
-    });
-
-    socket.on("session_stopped", () => {
-
-      console.log("Session stopped");
-
-      stopRecording();
-
-      setSessionStatus("stopped");
-      setCurrentPartition(null);
-      setTimeLeft(null);
-      setActiveSession(null);
-
     });
 
     return () => {
-
+      socket.off("connect");
       socket.off("partition_started");
       socket.off("partition_finished");
-      socket.off("transcript_segment");
-      socket.off("session_paused");
-      socket.off("session_resumed");
       socket.off("session_completed");
-      socket.off("session_stopped");
-
     };
 
-  }, []);
+  }, [activeSession]);
 
   // =========================
-  // LOCAL COUNTDOWN TIMER
+  // TIMER
   // =========================
   useEffect(() => {
 
-    if (sessionStatus !== "active" || timeLeft === null) return;
+    if (!partitionEndTime || sessionStatus !== "active") return;
 
-    const interval = setInterval(() => {
+    const updateTimer = () => {
 
-      setTimeLeft(prev => {
+      const now = Math.floor(Date.now() / 1000);
+      const remaining = partitionEndTime - now;
+      const safeTime = Math.max(remaining, 0);
 
-        if (prev === null) return null;
-
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-
-        return prev - 1;
-
+      console.log("[TIMER]", {
+        now,
+        end: partitionEndTime,
+        safeTime,
+        partition: currentPartition
       });
 
-    }, 1000);
+      setTimeLeft(safeTime);
+    };
 
-    return () => clearInterval(interval);
+    updateTimer();
 
-  }, [timeLeft, sessionStatus]);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    intervalRef.current = setInterval(updateTimer, 500);
+
+    return () => {
+      clearInterval(intervalRef.current);
+    };
+
+  }, [partitionEndTime, sessionStatus, currentPartition]);
 
   // =========================
-  // CREATE + START SESSION
+  // CREATE + START
   // =========================
   const handleCreateAndStart = async (sessionData) => {
 
@@ -169,7 +205,7 @@ const ProfessorDashboard = () => {
 
       setActiveSession(sessionId);
 
-      socket.emit("join_session", { session_id: sessionId });
+      socket.emit("join_session", sessionId);
 
       await api.post(`/sessions/${sessionId}/start`);
 
@@ -179,135 +215,77 @@ const ProfessorDashboard = () => {
     } catch (err) {
       console.error("Failed to start session", err);
     }
-
   };
 
   // =========================
   // CONTROLS
   // =========================
   const handlePause = async () => {
-
     if (!activeSession) return;
-
-    try {
-      await api.post(`/sessions/${activeSession}/pause`);
-    } catch (err) {
-      console.error(err);
-    }
-
+    await api.post(`/sessions/${activeSession}/pause`);
   };
 
   const handleResume = async () => {
-
     if (!activeSession) return;
-
-    try {
-      await api.post(`/sessions/${activeSession}/resume`);
-    } catch (err) {
-      console.error(err);
-    }
-
+    await api.post(`/sessions/${activeSession}/resume`);
   };
 
   const handleStop = async () => {
 
     if (!activeSession) return;
 
-    try {
-      await api.post(`/sessions/${activeSession}/stop`);
-    } catch (err) {
-      console.warn("Session already ended");
-    }
+    await api.post(`/sessions/${activeSession}/stop`);
 
     stopRecording();
 
     setSessionStatus("stopped");
     setCurrentPartition(null);
+    setPartitionEndTime(null);
     setTimeLeft(null);
     setActiveSession(null);
-
   };
 
   return (
-
     <div className="dashboard-container">
 
-      <div className="dashboard-header">
-        <h1>Professor Dashboard</h1>
-      </div>
+      <h1>Professor Dashboard</h1>
 
-      <div className="create-course-wrapper">
-        <CreateCourse onCourseCreated={fetchCourses} />
-      </div>
+      <CreateCourse onCourseCreated={fetchCourses} />
 
-      <div className="courses-section">
+      {courses.map(course => (
+        <div key={course.id}>
 
-        {loading ? (
-          <p>Loading...</p>
-        ) : (
+          <h3>{course.course_name}</h3>
+          <p>{course.semester} {course.year}</p>
+          <p>Class Code: {course.class_code}</p>
 
-          <div className="courses-grid">
+          {activeSession && sessionStatus !== "completed" ? (
+            <>
+              <p>Status: {sessionStatus}</p>
+              <p>Partition: {currentPartition}</p>
+              <p>Time Left: {timeLeft}s</p>
 
-            {courses.map((course) => (
+              {sessionStatus === "active" && (
+                <button onClick={handlePause}>Pause</button>
+              )}
 
-              <div key={course.id} className="course-card">
+              {sessionStatus === "paused" && (
+                <button onClick={handleResume}>Resume</button>
+              )}
 
-                <h3>{course.course_name}</h3>
+              <button onClick={handleStop}>Stop</button>
+            </>
+          ) : (
+            <button onClick={() => {
+              setSelectedCourse(course.id);
+              setShowModal(true);
+            }}>
+              Start Session
+            </button>
+          )}
 
-                <p>
-                  {course.semester} {course.year}
-                </p>
-
-                <p>Class Code: {course.class_code}</p>
-
-                {activeSession && sessionStatus !== "completed" ? (
-
-                  <div className="session-controls">
-
-                    <p>Status: {sessionStatus}</p>
-
-                    {currentPartition && (
-                      <p>Partition: {currentPartition}</p>
-                    )}
-
-                    {timeLeft !== null && (
-                      <p>Time Left: {timeLeft}s</p>
-                    )}
-
-                    {sessionStatus === "active" && (
-                      <button onClick={handlePause}>Pause</button>
-                    )}
-
-                    {sessionStatus === "paused" && (
-                      <button onClick={handleResume}>Resume</button>
-                    )}
-
-                    <button onClick={handleStop}>Stop</button>
-
-                  </div>
-
-                ) : (
-
-                  <button
-                    onClick={() => {
-                      setSelectedCourse(course.id);
-                      setShowModal(true);
-                    }}
-                  >
-                    Start Session
-                  </button>
-
-                )}
-
-              </div>
-
-            ))}
-
-          </div>
-
-        )}
-
-      </div>
+        </div>
+      ))}
 
       {showModal && (
         <SessionModal
@@ -318,9 +296,7 @@ const ProfessorDashboard = () => {
       )}
 
     </div>
-
   );
-
 };
 
 export default ProfessorDashboard;

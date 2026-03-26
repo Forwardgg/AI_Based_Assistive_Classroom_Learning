@@ -61,14 +61,14 @@ export const AuthProvider = ({ children }) => {
 
     localStorage.setItem("token", jwt);
     setToken(jwt);
-    setUser(decoded);  // 🔥 STORE USER
+    setUser(decoded);
     scheduleAutoLogout(jwt);
   };
 
   const logout = () => {
     localStorage.removeItem("token");
     setToken(null);
-    setUser(null);  // 🔥 CLEAR USER
+    setUser(null);
 
     if (logoutTimer.current) {
       clearTimeout(logoutTimer.current);

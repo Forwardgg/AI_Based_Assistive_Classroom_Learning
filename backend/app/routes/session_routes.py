@@ -181,7 +181,10 @@ def stop_session(session_id):
 @socketio.on("join_session")
 def handle_join_session(data):
 
-    session_id = data.get("session_id")
+    if isinstance(data, dict):
+        session_id = data.get("session_id")
+    else:
+        session_id = data
 
     if not session_id:
         return
@@ -189,7 +192,7 @@ def handle_join_session(data):
     room = f"session_{session_id}"
     join_room(room)
 
-    print(f"Client joined room {room}")
+    print(f"[SOCKET] Client joined room {room}")
 
 
 # =========================
@@ -211,7 +214,10 @@ def run_session_timer(app, session_id):
             .all()
         )
 
-        print("Partitions found:", len(partitions))
+        print("\n===== TIMER START =====")
+        print("Session:", session_id)
+        print("Partitions:", len(partitions))
+        print("=======================\n")
 
         room = f"session_{session_id}"
 
@@ -219,38 +225,55 @@ def run_session_timer(app, session_id):
 
             duration_seconds = (partition.end_minute - partition.start_minute) * 60
 
-            print(
-                f"Starting partition {partition.partition_index} "
-                f"({partition.start_minute} -> {partition.end_minute}) "
-                f"= {duration_seconds} seconds"
-            )
-
             if duration_seconds <= 0:
                 continue
 
-            # mark active partition
+            print(f"\n[PARTITION START] {partition.partition_index}")
+            print(f"Duration: {duration_seconds}s")
+
             session.current_partition_index = partition.partition_index
             db.session.commit()
+
+            start_time = int(time.time())
+            end_time = start_time + duration_seconds
+
+            session.partition_start_time = start_time
+            session.partition_end_time = end_time
+            db.session.commit()
+
+            print(f"[TIME SET] start={start_time}, end={end_time}")
 
             socketio.emit(
                 "partition_started",
                 {
                     "session_id": session_id,
                     "partition_index": partition.partition_index,
-                    "start_minute": partition.start_minute,
-                    "end_minute": partition.end_minute
+                    "start_time": start_time,
+                    "end_time": end_time
                 },
                 room=room
             )
 
-            elapsed = 0
+            # ✅ TIME-BASED LOOP
+            while True:
 
-            # TIMER LOOP
-            while elapsed < duration_seconds:
+                now = int(time.time())
+                remaining = end_time - now
+
+                print(f"[TIMER] partition={partition.partition_index} now={now} remaining={remaining}")
+
+                if remaining <= 0:
+                    print(f"[TIMER END] partition={partition.partition_index}")
+                    break
+
+                session = Session.query.get(session_id)
+                if not session or session.status not in ["active", "paused"]:
+                    print("[EXIT] Session invalid")
+                    return
 
                 if session_controls.get(session_id, {}).get("stopped"):
 
-                    print("Session manually stopped")
+                    print("[STOP] Session manually stopped")
 
                     session.status = "stopped"
                     session.current_partition_index = None
@@ -262,17 +285,21 @@ def run_session_timer(app, session_id):
                         room=room
                     )
 
+                    socketio.sleep(3)
+
+                    for p in partitions:
+                        finalize_partition_transcript(p.id)
+
                     return
 
                 if session_controls.get(session_id, {}).get("paused"):
+                    print("[PAUSED]")
                     socketio.sleep(1)
                     continue
 
                 socketio.sleep(1)
-                elapsed += 1
 
-            # partition finished AFTER timer
-            finalize_partition_transcript(partition.id)
+            print(f"[EMIT] partition_finished {partition.partition_index}")
 
             socketio.emit(
                 "partition_finished",
@@ -283,9 +310,13 @@ def run_session_timer(app, session_id):
                 room=room
             )
 
-        # session finished
+        print("\n[SESSION COMPLETE]\n")
+
         session.status = "completed"
         session.current_partition_index = None
+        session.partition_start_time = None
+        session.partition_end_time = None
+
         db.session.commit()
 
         socketio.emit(
@@ -294,4 +325,32 @@ def run_session_timer(app, session_id):
             room=room
         )
 
-        print("Session completed")
+        socketio.sleep(3)
+
+        print("[FINALIZING TRANSCRIPTS]")
+
+        for p in partitions:
+            finalize_partition_transcript(p.id)
+
+        print("[DONE]\n")
+
+
+# =========================
+# GET SESSION
+# =========================
+@session_bp.route("/<int:session_id>", methods=["GET"])
+@jwt_required()
+def get_session(session_id):
+
+    session = Session.query.get(session_id)
+
+    if not session:
+        return jsonify({"message": "Session not found"}), 404
+
+    return jsonify({
+        "id": session.id,
+        "status": session.status,
+        "current_partition_index": session.current_partition_index,
+        "start_time": session.partition_start_time,
+        "end_time": session.partition_end_time
+    })
