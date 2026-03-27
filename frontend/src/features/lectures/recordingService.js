@@ -17,7 +17,6 @@ export async function startRecording(sessionId) {
         time: Date.now()
     });
 
-    // 🔥 Prevent duplicate recorder
     if (isRecording) {
         console.log("[REC SKIP] Already recording");
         return;
@@ -38,7 +37,7 @@ export async function startRecording(sessionId) {
         mediaRecorder.ondataavailable = async (event) => {
 
             if (!currentSessionId) {
-                console.warn("[REC DATA DROPPED] No session");
+                console.warn("[REC DATA DROPPED]");
                 return;
             }
 
@@ -54,49 +53,55 @@ export async function startRecording(sessionId) {
         };
 
         mediaRecorder.onstop = () => {
-            console.log("[REC ORDERED STOP EVENT]");
+            console.log("[REC STOP EVENT]");
         };
 
         mediaRecorder.start();
 
         console.log("[REC STARTED]");
 
-        // ✅ Safe chunk cycling
+        // =========================
+        // CHUNK LOOP (WITH OVERLAP)
+        // =========================
         chunkTimer = setInterval(() => {
 
-            if (!isRecording) {
-                console.log("[REC INTERVAL STOPPED]");
-                return;
-            }
+            if (!isRecording) return;
 
             if (mediaRecorder && mediaRecorder.state === "recording") {
 
                 console.log("[REC CHUNK TRIGGER]", Date.now());
 
-                try {
-                    mediaRecorder.stop();
-                } catch (err) {
-                    console.warn("[REC STOP ERROR]", err);
-                }
-
-                // 🔥 restart safely AFTER delay
+                // 🔥 overlap buffer
                 setTimeout(() => {
 
                     if (!isRecording) return;
 
-                    if (mediaRecorder && mediaRecorder.state === "inactive") {
-                        try {
-                            mediaRecorder.start();
-                            console.log("[REC RESTART SUCCESS]");
-                        } catch (err) {
-                            console.warn("[REC RESTART FAILED]", err);
-                        }
+                    try {
+                        mediaRecorder.stop();
+                        console.log("[REC STOP FOR CHUNK]");
+                    } catch (err) {
+                        console.warn("[REC STOP ERROR]", err);
                     }
 
-                }, 150);
+                    // 🔥 restart after small delay
+                    setTimeout(() => {
+
+                        if (!isRecording) return;
+
+                        try {
+                            mediaRecorder.start();
+                            console.log("[REC RESTARTED]");
+                        } catch (err) {
+                            console.warn("[REC RESTART ERROR]", err);
+                        }
+
+                    }, 200);
+
+                }, 200);
+
             }
 
-        }, 10000); // 🔥 reduced from 15000 → more reliable
+        }, 8000); // 8s sweet spot
 
     } catch (err) {
         console.error("[REC MIC ERROR]", err);
@@ -130,9 +135,17 @@ async function uploadChunk(blob, sessionId) {
 
         console.log("[UPLOAD RESPONSE]", res.status);
 
-        // 🔥 STOP if backend rejects (session ended)
         if (!res.ok) {
-            console.warn("[UPLOAD REJECTED → STOP RECORDING]");
+
+            console.warn("[UPLOAD REJECTED]", res.status);
+
+            // 🔥 FIX: ignore final chunk after session ends
+            if (res.status === 400) {
+                console.log("[IGNORE FINAL CHUNK AFTER SESSION END]");
+                return;
+            }
+
+            // only stop for real errors
             stopRecording();
         }
 
@@ -150,30 +163,30 @@ export function stopRecording() {
     console.log("[REC STOP REQUEST]", Date.now());
 
     if (!isRecording) {
-        console.log("[REC STOP SKIP] Not recording");
+        console.log("[REC STOP SKIP]");
         return;
     }
 
     isRecording = false;
 
-    // stop interval first
     if (chunkTimer) {
         clearInterval(chunkTimer);
         chunkTimer = null;
         console.log("[REC INTERVAL CLEARED]");
     }
 
-    // 🔥 trigger final chunk
+    // 🔥 final chunk flush
     if (mediaRecorder && mediaRecorder.state === "recording") {
+
+        console.log("[FINAL CHUNK FLUSH]");
+
         try {
             mediaRecorder.stop();
-            console.log("[REC FINAL STOP TRIGGERED]");
         } catch (err) {
-            console.warn("[REC FINAL STOP ERROR]", err);
+            console.warn("[FINAL STOP ERROR]", err);
         }
     }
 
-    // 🔥 release mic safely
     if (stream) {
         stream.getTracks().forEach(track => {
             try {
@@ -182,13 +195,13 @@ export function stopRecording() {
                 console.warn("[TRACK STOP ERROR]", err);
             }
         });
+
         stream = null;
         console.log("[REC STREAM RELEASED]");
     }
 
-    // allow last upload to finish
     setTimeout(() => {
-        console.log("[REC SESSION CLEARED]");
         currentSessionId = null;
+        console.log("[REC SESSION CLEARED]");
     }, 500);
 }

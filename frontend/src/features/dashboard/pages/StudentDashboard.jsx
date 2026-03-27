@@ -1,6 +1,6 @@
 // frontend/src/features/dashboard/pages/StudentDashboard.jsx
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getCourses, joinCourse } from "../../courses/courseAPI";
 import socket from "../../../services/socket";
 import api from "../../../services/api";
@@ -16,7 +16,11 @@ const StudentDashboard = () => {
   const [activeSession, setActiveSession] = useState(null);
   const [sessionStatus, setSessionStatus] = useState(null);
   const [currentPartition, setCurrentPartition] = useState(null);
+
   const [timeLeft, setTimeLeft] = useState(null);
+  const [partitionEndTime, setPartitionEndTime] = useState(null);
+
+  const intervalRef = useRef(null);
 
   // =========================
   // FETCH COURSES
@@ -38,7 +42,7 @@ const StudentDashboard = () => {
   }, []);
 
   // =========================
-  // CHECK ACTIVE OR PAUSED SESSION
+  // CHECK ACTIVE SESSION
   // =========================
   const checkActiveSession = async (courseId) => {
     try {
@@ -71,13 +75,14 @@ const StudentDashboard = () => {
   useEffect(() => {
 
     socket.on("partition_started", (data) => {
+
+      console.log("[STUDENT PARTITION START]", data);
+
       setCurrentPartition(data.partition_index);
       setSessionStatus("active");
 
-      const seconds =
-        (data.end_minute - data.start_minute) * 60;
-
-      setTimeLeft(seconds);
+      // 🔥 FIX: use backend time
+      setPartitionEndTime(data.end_time);
     });
 
     socket.on("session_paused", () => {
@@ -89,16 +94,24 @@ const StudentDashboard = () => {
     });
 
     socket.on("session_completed", () => {
+
+      console.log("[SESSION COMPLETED]");
+
       setSessionStatus("completed");
       setCurrentPartition(null);
       setTimeLeft(null);
+      setPartitionEndTime(null);
       setActiveSession(null);
     });
 
     socket.on("session_stopped", () => {
+
+      console.log("[SESSION STOPPED]");
+
       setSessionStatus("stopped");
       setCurrentPartition(null);
       setTimeLeft(null);
+      setPartitionEndTime(null);
       setActiveSession(null);
     });
 
@@ -113,23 +126,41 @@ const StudentDashboard = () => {
   }, []);
 
   // =========================
-  // LOCAL COUNTDOWN TIMER
+  // 🔥 STABLE TIMER (same as professor)
   // =========================
   useEffect(() => {
-    if (!timeLeft || sessionStatus !== "active") return;
 
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
+    if (!partitionEndTime || sessionStatus !== "active") return;
+
+    const updateTimer = () => {
+
+      const now = Math.floor(Date.now() / 1000);
+      const remaining = partitionEndTime - now;
+      const safeTime = Math.max(remaining, 0);
+
+      console.log("[STUDENT TIMER]", {
+        now,
+        end: partitionEndTime,
+        safeTime,
+        partition: currentPartition
       });
-    }, 1000);
 
-    return () => clearInterval(interval);
-  }, [timeLeft, sessionStatus]);
+      setTimeLeft(safeTime);
+    };
+
+    updateTimer();
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    intervalRef.current = setInterval(updateTimer, 500);
+
+    return () => {
+      clearInterval(intervalRef.current);
+    };
+
+  }, [partitionEndTime, sessionStatus, currentPartition]);
 
   // =========================
   // JOIN COURSE
