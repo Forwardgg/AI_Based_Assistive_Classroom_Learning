@@ -1,5 +1,3 @@
-# backend/app/routes/session_routes.py
-
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from flask_socketio import join_room
@@ -9,13 +7,21 @@ from app.models.session import Session
 from app.models.session_partition import SessionPartition
 from app.models.course import Course
 from app.services.transcript_service import finalize_partition_transcript
+from app.services.quiz_service import generate_quiz_for_partition
 
 import time
 
 session_bp = Blueprint("session_bp", __name__)
 
-# runtime session controls
 session_controls = {}
+
+
+# =========================
+# HELPER: RUN QUIZ WITH CONTEXT
+# =========================
+def run_quiz_with_context(app, partition_id, session_id):
+    with app.app_context():
+        generate_quiz_for_partition(partition_id, session_id)
 
 
 # =========================
@@ -196,7 +202,7 @@ def handle_join_session(data):
 
 
 # =========================
-# TIMER ENGINE (FIXED)
+# TIMER ENGINE (SOFT PAUSE)
 # =========================
 def run_session_timer(app, session_id):
 
@@ -214,11 +220,6 @@ def run_session_timer(app, session_id):
             .all()
         )
 
-        print("\n===== TIMER START =====")
-        print("Session:", session_id)
-        print("Partitions:", len(partitions))
-        print("=======================\n")
-
         room = f"session_{session_id}"
 
         for partition in partitions:
@@ -227,9 +228,6 @@ def run_session_timer(app, session_id):
 
             if duration_seconds <= 0:
                 continue
-
-            print(f"\n[PARTITION START] {partition.partition_index}")
-            print(f"Duration: {duration_seconds}s")
 
             session.current_partition_index = partition.partition_index
             db.session.commit()
@@ -240,8 +238,6 @@ def run_session_timer(app, session_id):
             session.partition_start_time = start_time
             session.partition_end_time = end_time
             db.session.commit()
-
-            print(f"[TIME SET] start={start_time}, end={end_time}")
 
             socketio.emit(
                 "partition_started",
@@ -254,26 +250,20 @@ def run_session_timer(app, session_id):
                 room=room
             )
 
-            # ✅ TIME-BASED LOOP
             while True:
 
                 now = int(time.time())
                 remaining = end_time - now
 
-                print(f"[TIMER] partition={partition.partition_index} now={now} remaining={remaining}")
-
                 if remaining <= 0:
-                    print(f"[TIMER END] partition={partition.partition_index}")
                     break
 
                 session = Session.query.get(session_id)
+
                 if not session or session.status not in ["active", "paused"]:
-                    print("[EXIT] Session invalid")
                     return
 
                 if session_controls.get(session_id, {}).get("stopped"):
-
-                    print("[STOP] Session manually stopped")
 
                     session.status = "stopped"
                     session.current_partition_index = None
@@ -293,25 +283,53 @@ def run_session_timer(app, session_id):
                     return
 
                 if session_controls.get(session_id, {}).get("paused"):
-                    print("[PAUSED]")
                     socketio.sleep(1)
                     continue
 
                 socketio.sleep(1)
 
-            print(f"[EMIT] partition_finished {partition.partition_index}")
-
+            # =========================
+            # PARTITION FINISHED
+            # =========================
             socketio.emit(
                 "partition_finished",
                 {
                     "session_id": session_id,
-                    "partition_index": partition.partition_index
+                    "partition_index": partition.partition_index,
+                    "partition_id": partition.id
                 },
                 room=room
             )
 
-        print("\n[SESSION COMPLETE]\n")
+            finalize_partition_transcript(partition.id)
 
+            # AUTO PAUSE
+            session.status = "paused"
+            db.session.commit()
+
+            session_controls[session_id]["paused"] = True
+
+            socketio.emit(
+                "session_paused",
+                {"session_id": session_id},
+                room=room
+            )
+
+            print("[AUTO PAUSE AFTER PARTITION]")
+
+            # WAIT UNTIL RESUME
+            while session_controls.get(session_id, {}).get("paused"):
+
+                session = Session.query.get(session_id)
+
+                if not session or session_controls.get(session_id, {}).get("stopped"):
+                    return
+
+                socketio.sleep(1)
+
+            print("[RESUMED → NEXT PARTITION]")
+
+        # SESSION COMPLETE
         session.status = "completed"
         session.current_partition_index = None
         session.partition_start_time = None
@@ -327,12 +345,38 @@ def run_session_timer(app, session_id):
 
         socketio.sleep(3)
 
-        print("[FINALIZING TRANSCRIPTS]")
-
         for p in partitions:
             finalize_partition_transcript(p.id)
 
-        print("[DONE]\n")
+
+# =========================
+# GENERATE QUIZ (FIXED)
+# =========================
+@session_bp.route("/<int:session_id>/generate-quiz", methods=["POST"])
+@jwt_required()
+def generate_quiz(session_id):
+
+    data = request.get_json() or {}
+    partition_id = data.get("partition_id")
+
+    if not partition_id:
+        return jsonify({"message": "partition_id required"}), 400
+
+    partition = SessionPartition.query.get(partition_id)
+
+    if not partition:
+        return jsonify({"message": "Partition not found"}), 404
+
+    app = current_app._get_current_object()
+
+    socketio.start_background_task(
+        run_quiz_with_context,
+        app,
+        partition_id,
+        session_id
+    )
+
+    return jsonify({"message": "Quiz generation started"}), 200
 
 
 # =========================

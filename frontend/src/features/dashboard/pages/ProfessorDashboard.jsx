@@ -1,5 +1,3 @@
-// frontend/src/features/dashboard/pages/ProfessorDashboard.jsx
-
 import { useEffect, useState, useRef } from "react";
 import { getCourses } from "../../courses/courseAPI";
 import CreateCourse from "../../courses/pages/CreateCourse";
@@ -24,6 +22,14 @@ const ProfessorDashboard = () => {
   const [showModal, setShowModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
 
+  // ✅ QUIZ STATE
+  const [showQuizPrompt, setShowQuizPrompt] = useState(false);
+  const [lastPartitionId, setLastPartitionId] = useState(null);
+
+  // 🔥 NEW STATES
+  const [quizGenerated, setQuizGenerated] = useState(false);
+  const [loadingQuiz, setLoadingQuiz] = useState(false);
+
   const intervalRef = useRef(null);
 
   // =========================
@@ -46,96 +52,32 @@ const ProfessorDashboard = () => {
   }, []);
 
   // =========================
-  // SYNC SESSION
-  // =========================
-  const syncSession = async () => {
-
-    if (!activeSession) return;
-
-    console.log("[SYNC START]", activeSession);
-
-    try {
-      const res = await api.get(`/sessions/${activeSession}`);
-      const session = res.data;
-
-      console.log("[SYNC DATA]", session);
-
-      socket.emit("join_session", session.id);
-
-      if (session.status === "completed") {
-
-        console.log("[SYNC] Session already completed");
-
-        stopRecording();
-
-        setSessionStatus("completed");
-        setCurrentPartition(null);
-        setPartitionEndTime(null);
-        setTimeLeft(null);
-        setActiveSession(null);
-
-        fetchCourses();
-        return;
-      }
-
-      if (session.status === "active") {
-
-        setSessionStatus("active");
-        setCurrentPartition(session.current_partition_index);
-
-        if (session.end_time) {
-          setPartitionEndTime(session.end_time);
-        }
-
-        // 🔥 delay restart to avoid recorder crash
-        setTimeout(() => {
-          console.log("[SYNC → REC START]");
-          startRecording(session.id);
-        }, 500);
-      }
-
-    } catch (err) {
-      console.error("Sync failed", err);
-    }
-  };
-
-  // =========================
   // SOCKET LISTENERS
   // =========================
   useEffect(() => {
 
-    socket.on("connect", () => {
-      console.log("[SOCKET CONNECTED → SYNC]");
-      syncSession();
-    });
-
     socket.on("partition_started", (data) => {
-
-      console.log("[PARTITION START]", {
-        partition: data.partition_index,
-        time: Date.now()
-      });
-
       setCurrentPartition(data.partition_index);
       setSessionStatus("active");
       setPartitionEndTime(data.end_time);
 
-      // 🔥 CRITICAL FIX: delayed restart
       setTimeout(() => {
-        console.log("[REC START AFTER DELAY]");
         startRecording(data.session_id);
       }, 500);
     });
 
-    socket.on("partition_finished", () => {
-      console.log("[PARTITION FINISHED → STOP REC]", Date.now());
+    socket.on("partition_finished", (data) => {
       stopRecording();
+
+      setLastPartitionId(data.partition_id);
+      setShowQuizPrompt(true);
+
+      // 🔥 reset quiz state for new partition
+      setQuizGenerated(false);
+      setLoadingQuiz(false);
     });
 
     socket.on("session_completed", () => {
-
-      console.log("[SESSION COMPLETED]", Date.now());
-
       stopRecording();
 
       setSessionStatus("completed");
@@ -148,7 +90,6 @@ const ProfessorDashboard = () => {
     });
 
     return () => {
-      socket.off("connect");
       socket.off("partition_started");
       socket.off("partition_finished");
       socket.off("session_completed");
@@ -164,19 +105,9 @@ const ProfessorDashboard = () => {
     if (!partitionEndTime || sessionStatus !== "active") return;
 
     const updateTimer = () => {
-
       const now = Math.floor(Date.now() / 1000);
       const remaining = partitionEndTime - now;
-      const safeTime = Math.max(remaining, 0);
-
-      console.log("[TIMER]", {
-        now,
-        end: partitionEndTime,
-        safeTime,
-        partition: currentPartition
-      });
-
-      setTimeLeft(safeTime);
+      setTimeLeft(Math.max(remaining, 0));
     };
 
     updateTimer();
@@ -187,11 +118,9 @@ const ProfessorDashboard = () => {
 
     intervalRef.current = setInterval(updateTimer, 500);
 
-    return () => {
-      clearInterval(intervalRef.current);
-    };
+    return () => clearInterval(intervalRef.current);
 
-  }, [partitionEndTime, sessionStatus, currentPartition]);
+  }, [partitionEndTime, sessionStatus]);
 
   // =========================
   // CREATE + START
@@ -199,16 +128,13 @@ const ProfessorDashboard = () => {
   const handleCreateAndStart = async (sessionData) => {
 
     try {
-
-      const createRes = await api.post("/sessions", sessionData);
-      const sessionId = createRes.data.session.id;
+      const res = await api.post("/sessions", sessionData);
+      const sessionId = res.data.session.id;
 
       setActiveSession(sessionId);
-
       socket.emit("join_session", sessionId);
 
       await api.post(`/sessions/${sessionId}/start`);
-
       setSessionStatus("active");
       setShowModal(false);
 
@@ -218,16 +144,56 @@ const ProfessorDashboard = () => {
   };
 
   // =========================
+  // QUIZ ACTIONS
+  // =========================
+  const handleGenerateQuiz = async () => {
+
+    if (!activeSession || !lastPartitionId) return;
+
+    try {
+      setLoadingQuiz(true);
+
+      await api.post(`/sessions/${activeSession}/generate-quiz`, {
+        partition_id: lastPartitionId
+      });
+
+      setLoadingQuiz(false);
+      setQuizGenerated(true);
+
+    } catch (err) {
+      setLoadingQuiz(false);
+      console.error("Quiz generation failed", err);
+    }
+  };
+
+  const handleSkipQuiz = async () => {
+    if (!activeSession) return;
+
+    try {
+      await api.post(`/sessions/${activeSession}/resume`);
+      setShowQuizPrompt(false);
+    } catch (err) {
+      console.error("Skip failed", err);
+    }
+  };
+
+  const handleResume = async () => {
+    if (!activeSession) return;
+
+    try {
+      await api.post(`/sessions/${activeSession}/resume`);
+      setShowQuizPrompt(false);
+    } catch (err) {
+      console.error("Resume failed", err);
+    }
+  };
+
+  // =========================
   // CONTROLS
   // =========================
   const handlePause = async () => {
     if (!activeSession) return;
     await api.post(`/sessions/${activeSession}/pause`);
-  };
-
-  const handleResume = async () => {
-    if (!activeSession) return;
-    await api.post(`/sessions/${activeSession}/resume`);
   };
 
   const handleStop = async () => {
@@ -269,10 +235,6 @@ const ProfessorDashboard = () => {
                 <button onClick={handlePause}>Pause</button>
               )}
 
-              {sessionStatus === "paused" && (
-                <button onClick={handleResume}>Resume</button>
-              )}
-
               <button onClick={handleStop}>Stop</button>
             </>
           ) : (
@@ -286,6 +248,36 @@ const ProfessorDashboard = () => {
 
         </div>
       ))}
+
+      {/* QUIZ PROMPT */}
+      {showQuizPrompt && (
+        <div className="quiz-popup">
+
+          <p>Partition complete. What next?</p>
+
+          {/* 🔥 UPDATED UI */}
+          {loadingQuiz && <p>Generating quiz...</p>}
+
+          {!quizGenerated && !loadingQuiz && (
+            <button onClick={handleGenerateQuiz}>
+              Generate AI Quiz
+            </button>
+          )}
+
+          {quizGenerated && (
+            <p>✅ Quiz Generated</p>
+          )}
+
+          <button onClick={handleSkipQuiz}>
+            Skip & Resume
+          </button>
+
+          <button onClick={handleResume}>
+            Resume Lecture
+          </button>
+
+        </div>
+      )}
 
       {showModal && (
         <SessionModal
