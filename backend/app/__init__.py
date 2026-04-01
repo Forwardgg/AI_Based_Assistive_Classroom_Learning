@@ -6,9 +6,10 @@ from flask_socketio import SocketIO
 
 db = SQLAlchemy()
 jwt = JWTManager()
-socketio = SocketIO(cors_allowed_origins="*")  # any frontend connect via websocket
-
-
+socketio = SocketIO(
+    cors_allowed_origins="*",
+    async_mode="eventlet"
+)
 def create_app():
     app = Flask(__name__)
     app.config.from_object("app.config.Config")
@@ -63,11 +64,13 @@ def create_app():
     from .routes.course_routes import course_bp
     from .routes.session_routes import session_bp
     from .routes.transcript_routes import transcript_bp
+    from .routes.quiz_routes import quiz_bp
 
     app.register_blueprint(user_bp, url_prefix="/api/users")
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(course_bp, url_prefix="/api/courses")
     app.register_blueprint(session_bp, url_prefix="/api/sessions")
     app.register_blueprint(transcript_bp, url_prefix="/api/transcripts")
+    app.register_blueprint(quiz_bp, url_prefix="/api/quiz")
 
     return app

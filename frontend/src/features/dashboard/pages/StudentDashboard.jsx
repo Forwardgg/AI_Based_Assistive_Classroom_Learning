@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { getCourses, joinCourse } from "../../courses/courseAPI";
 import socket from "../../../services/socket";
 import api from "../../../services/api";
+import QuizModal from "../../../features/quiz/QuizModal";
 import "./StudentDashboard.css";
 
 const StudentDashboard = () => {
@@ -19,6 +20,9 @@ const StudentDashboard = () => {
 
   const [timeLeft, setTimeLeft] = useState(null);
   const [partitionEndTime, setPartitionEndTime] = useState(null);
+
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizPartitionId, setQuizPartitionId] = useState(null);
 
   const intervalRef = useRef(null);
 
@@ -42,13 +46,28 @@ const StudentDashboard = () => {
   }, []);
 
   // =========================
+  // SYNC FUNCTION
+  // =========================
+  const syncSessionState = async (sessionId) => {
+    try {
+      const res = await api.get(`/sessions/${sessionId}`);
+      const data = res.data;
+
+      setSessionStatus(data.status);
+      setCurrentPartition(data.current_partition_index);
+      setPartitionEndTime(data.end_time);
+
+    } catch (err) {
+      console.error("Sync failed", err);
+    }
+  };
+
+  // =========================
   // CHECK ACTIVE SESSION
   // =========================
   const checkActiveSession = async (courseId) => {
     try {
-      const res = await api.get(
-        `/sessions/course/${courseId}/active`
-      );
+      const res = await api.get(`/sessions/course/${courseId}/active`);
 
       if (res.data.exists) {
         setSessionStatus(res.data.status);
@@ -64,88 +83,116 @@ const StudentDashboard = () => {
   // =========================
   // JOIN SESSION
   // =========================
-  const joinSession = (sessionId) => {
+  const joinSession = async (sessionId) => {
     socket.emit("join_session", { session_id: sessionId });
     setActiveSession(sessionId);
+
+    await syncSessionState(sessionId);
+
+    // 🔥 CRITICAL: fallback sync (prevents missed events)
+    setTimeout(() => {
+      syncSessionState(sessionId);
+    }, 300);
   };
 
   // =========================
-  // SOCKET LISTENERS
+  // SOCKET LISTENERS (FIXED)
   // =========================
   useEffect(() => {
 
-    socket.on("partition_started", (data) => {
+    const handleSessionState = (data) => {
+      console.log("[SESSION STATE RECEIVED]", data);
 
-      console.log("[STUDENT PARTITION START]", data);
+      setSessionStatus(data.status);
+      setCurrentPartition(data.current_partition_index);
 
-      setCurrentPartition(data.partition_index);
-      setSessionStatus("active");
+      const now = Math.floor(Date.now() / 1000);
+      const drift = now - data.server_time;
 
-      // 🔥 FIX: use backend time
-      setPartitionEndTime(data.end_time);
-    });
+      const correctedEnd = data.end_time
+        ? data.end_time + drift
+        : null;
 
-    socket.on("session_paused", () => {
-      setSessionStatus("paused");
-    });
+      setPartitionEndTime(correctedEnd);
+    };
 
-    socket.on("session_resumed", () => {
-      setSessionStatus("active");
-    });
-
-    socket.on("session_completed", () => {
-
-      console.log("[SESSION COMPLETED]");
-
+    const handleCompleted = () => {
       setSessionStatus("completed");
       setCurrentPartition(null);
       setTimeLeft(null);
       setPartitionEndTime(null);
       setActiveSession(null);
-    });
+      setShowQuiz(false);
+    };
 
-    socket.on("session_stopped", () => {
-
-      console.log("[SESSION STOPPED]");
-
+    const handleStopped = () => {
       setSessionStatus("stopped");
       setCurrentPartition(null);
       setTimeLeft(null);
       setPartitionEndTime(null);
       setActiveSession(null);
-    });
+      setShowQuiz(false);
+    };
+
+    const handleQuiz = (data) => {
+      setQuizPartitionId(data.partition_id);
+      setShowQuiz(true);
+    };
+
+    socket.on("session_state", handleSessionState);
+    socket.on("session_completed", handleCompleted);
+    socket.on("session_stopped", handleStopped);
+    socket.on("quiz_ready", handleQuiz);
 
     return () => {
-      socket.off("partition_started");
-      socket.off("session_paused");
-      socket.off("session_resumed");
-      socket.off("session_completed");
-      socket.off("session_stopped");
+      socket.off("session_state", handleSessionState);
+      socket.off("session_completed", handleCompleted);
+      socket.off("session_stopped", handleStopped);
+      socket.off("quiz_ready", handleQuiz);
     };
 
   }, []);
 
   // =========================
-  // 🔥 STABLE TIMER (same as professor)
+  // RECONNECT HANDLER
   // =========================
   useEffect(() => {
+    const handleReconnect = () => {
+      if (activeSession) {
+        socket.emit("join_session", { session_id: activeSession });
+        syncSessionState(activeSession);
+      }
+    };
 
+    socket.on("connect", handleReconnect);
+
+    return () => socket.off("connect", handleReconnect);
+
+  }, [activeSession]);
+
+  // =========================
+  // HEARTBEAT SYNC
+  // =========================
+  useEffect(() => {
+    if (!activeSession) return;
+
+    const interval = setInterval(() => {
+      syncSessionState(activeSession);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [activeSession]);
+
+  // =========================
+  // TIMER
+  // =========================
+  useEffect(() => {
     if (!partitionEndTime || sessionStatus !== "active") return;
 
     const updateTimer = () => {
-
       const now = Math.floor(Date.now() / 1000);
       const remaining = partitionEndTime - now;
-      const safeTime = Math.max(remaining, 0);
-
-      console.log("[STUDENT TIMER]", {
-        now,
-        end: partitionEndTime,
-        safeTime,
-        partition: currentPartition
-      });
-
-      setTimeLeft(safeTime);
+      setTimeLeft(Math.max(remaining, 0));
     };
 
     updateTimer();
@@ -156,11 +203,9 @@ const StudentDashboard = () => {
 
     intervalRef.current = setInterval(updateTimer, 500);
 
-    return () => {
-      clearInterval(intervalRef.current);
-    };
+    return () => clearInterval(intervalRef.current);
 
-  }, [partitionEndTime, sessionStatus, currentPartition]);
+  }, [partitionEndTime, sessionStatus]);
 
   // =========================
   // JOIN COURSE
@@ -189,7 +234,6 @@ const StudentDashboard = () => {
     <div className="dashboard">
       <h1>Student Dashboard</h1>
 
-      {/* JOIN COURSE FORM */}
       <form onSubmit={handleJoinCourse}>
         <input
           value={classCode}
@@ -206,7 +250,6 @@ const StudentDashboard = () => {
         </button>
       </form>
 
-      {/* COURSE LIST */}
       <div className="courses-grid">
         {courses.map((course) => (
           <div key={course.id} className="course-card">
@@ -216,10 +259,6 @@ const StudentDashboard = () => {
             {activeSession ? (
               <div className="live-session">
                 <p>Status: {sessionStatus}</p>
-
-                {sessionStatus === "paused" && (
-                  <p>⏸ Session Paused</p>
-                )}
 
                 {currentPartition && (
                   <p>Partition: {currentPartition}</p>
@@ -232,8 +271,7 @@ const StudentDashboard = () => {
             ) : (
               <button
                 onClick={async () => {
-                  const sessionId =
-                    await checkActiveSession(course.id);
+                  const sessionId = await checkActiveSession(course.id);
 
                   if (!sessionId) {
                     alert("No live session right now");
@@ -249,6 +287,13 @@ const StudentDashboard = () => {
           </div>
         ))}
       </div>
+
+      {showQuiz && (
+        <QuizModal
+          partitionId={quizPartitionId}
+          onClose={() => setShowQuiz(false)}
+        />
+      )}
     </div>
   );
 };

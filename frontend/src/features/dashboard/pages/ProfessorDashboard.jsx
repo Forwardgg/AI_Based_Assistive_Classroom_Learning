@@ -1,3 +1,5 @@
+// frontend/src/features/dashboard/pages/ProfessorDashboard.jsx
+
 import { useEffect, useState, useRef } from "react";
 import { getCourses } from "../../courses/courseAPI";
 import CreateCourse from "../../courses/pages/CreateCourse";
@@ -5,6 +7,7 @@ import socket from "../../../services/socket";
 import api from "../../../services/api";
 import SessionModal from "../../lectures/pages/SessionModal";
 import { startRecording, stopRecording } from "../../lectures/recordingService";
+import ProfessorQuizView from "../../quiz/ProfessorQuizView";
 import "./ProfessorDashboard.css";
 
 const ProfessorDashboard = () => {
@@ -22,11 +25,9 @@ const ProfessorDashboard = () => {
   const [showModal, setShowModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
 
-  // ✅ QUIZ STATE
   const [showQuizPrompt, setShowQuizPrompt] = useState(false);
   const [lastPartitionId, setLastPartitionId] = useState(null);
 
-  // 🔥 NEW STATES
   const [quizGenerated, setQuizGenerated] = useState(false);
   const [loadingQuiz, setLoadingQuiz] = useState(false);
 
@@ -52,33 +53,46 @@ const ProfessorDashboard = () => {
   }, []);
 
   // =========================
-  // SOCKET LISTENERS
+  // SOCKET LISTENERS (FIXED)
   // =========================
   useEffect(() => {
 
-    socket.on("partition_started", (data) => {
-      setCurrentPartition(data.partition_index);
-      setSessionStatus("active");
-      setPartitionEndTime(data.end_time);
+    const handleSessionState = (data) => {
+      console.log("[PROF SESSION STATE]", data);
 
-      setTimeout(() => {
+      setSessionStatus(data.status);
+      setCurrentPartition(data.current_partition_index);
+
+      const now = Math.floor(Date.now() / 1000);
+      const drift = now - data.server_time;
+
+      const correctedEnd = data.end_time
+        ? data.end_time + drift
+        : null;
+
+      setPartitionEndTime(correctedEnd);
+
+      // ✅ START ONLY when partition exists
+      if (data.status === "active" && data.current_partition_index) {
         startRecording(data.session_id);
-      }, 500);
-    });
+      }
+    };
 
-    socket.on("partition_finished", (data) => {
-      stopRecording();
+    const handlePartitionFinished = (data) => {
+      console.log("[PARTITION FINISHED]", data);
+
+      // ✅ STOP only here
+      stopRecording(true);
 
       setLastPartitionId(data.partition_id);
       setShowQuizPrompt(true);
 
-      // 🔥 reset quiz state for new partition
       setQuizGenerated(false);
       setLoadingQuiz(false);
-    });
+    };
 
-    socket.on("session_completed", () => {
-      stopRecording();
+    const handleCompleted = () => {
+      stopRecording(true);
 
       setSessionStatus("completed");
       setCurrentPartition(null);
@@ -87,15 +101,40 @@ const ProfessorDashboard = () => {
       setActiveSession(null);
 
       fetchCourses();
-    });
-
-    return () => {
-      socket.off("partition_started");
-      socket.off("partition_finished");
-      socket.off("session_completed");
     };
 
-  }, [activeSession]);
+    const handleStopped = () => {
+      stopRecording(true);
+
+      setSessionStatus("stopped");
+      setCurrentPartition(null);
+      setPartitionEndTime(null);
+      setTimeLeft(null);
+      setActiveSession(null);
+    };
+
+    const handleQuizReady = (data) => {
+      if (data.partition_id === lastPartitionId) {
+        setLoadingQuiz(false);
+        setQuizGenerated(true);
+      }
+    };
+
+    socket.on("session_state", handleSessionState);
+    socket.on("partition_finished", handlePartitionFinished);
+    socket.on("session_completed", handleCompleted);
+    socket.on("session_stopped", handleStopped);
+    socket.on("quiz_ready", handleQuizReady);
+
+    return () => {
+      socket.off("session_state", handleSessionState);
+      socket.off("partition_finished", handlePartitionFinished);
+      socket.off("session_completed", handleCompleted);
+      socket.off("session_stopped", handleStopped);
+      socket.off("quiz_ready", handleQuizReady);
+    };
+
+  }, [lastPartitionId]);
 
   // =========================
   // TIMER
@@ -132,10 +171,11 @@ const ProfessorDashboard = () => {
       const sessionId = res.data.session.id;
 
       setActiveSession(sessionId);
-      socket.emit("join_session", sessionId);
+
+      socket.emit("join_session", { session_id: sessionId });
 
       await api.post(`/sessions/${sessionId}/start`);
-      setSessionStatus("active");
+
       setShowModal(false);
 
     } catch (err) {
@@ -157,52 +197,28 @@ const ProfessorDashboard = () => {
         partition_id: lastPartitionId
       });
 
-      setLoadingQuiz(false);
-      setQuizGenerated(true);
-
     } catch (err) {
       setLoadingQuiz(false);
       console.error("Quiz generation failed", err);
     }
   };
 
-  const handleSkipQuiz = async () => {
-    if (!activeSession) return;
-
-    try {
-      await api.post(`/sessions/${activeSession}/resume`);
-      setShowQuizPrompt(false);
-    } catch (err) {
-      console.error("Skip failed", err);
-    }
-  };
-
   const handleResume = async () => {
     if (!activeSession) return;
-
-    try {
-      await api.post(`/sessions/${activeSession}/resume`);
-      setShowQuizPrompt(false);
-    } catch (err) {
-      console.error("Resume failed", err);
-    }
+    await api.post(`/sessions/${activeSession}/resume`);
+    setShowQuizPrompt(false);
   };
 
-  // =========================
-  // CONTROLS
-  // =========================
   const handlePause = async () => {
     if (!activeSession) return;
     await api.post(`/sessions/${activeSession}/pause`);
   };
 
   const handleStop = async () => {
-
     if (!activeSession) return;
 
     await api.post(`/sessions/${activeSession}/stop`);
-
-    stopRecording();
+    stopRecording(true);
 
     setSessionStatus("stopped");
     setCurrentPartition(null);
@@ -249,13 +265,11 @@ const ProfessorDashboard = () => {
         </div>
       ))}
 
-      {/* QUIZ PROMPT */}
       {showQuizPrompt && (
         <div className="quiz-popup">
 
           <p>Partition complete. What next?</p>
 
-          {/* 🔥 UPDATED UI */}
           {loadingQuiz && <p>Generating quiz...</p>}
 
           {!quizGenerated && !loadingQuiz && (
@@ -265,12 +279,11 @@ const ProfessorDashboard = () => {
           )}
 
           {quizGenerated && (
-            <p>✅ Quiz Generated</p>
+            <>
+              <p>✅ Quiz Generated</p>
+              <ProfessorQuizView partitionId={lastPartitionId} />
+            </>
           )}
-
-          <button onClick={handleSkipQuiz}>
-            Skip & Resume
-          </button>
 
           <button onClick={handleResume}>
             Resume Lecture

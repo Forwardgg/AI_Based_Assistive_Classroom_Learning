@@ -6,16 +6,26 @@ let currentSessionId = null;
 let chunkTimer = null;
 let isRecording = false;
 
+// 🔥 NEW: track cleanup timeout
+let cleanupTimeout = null;
+
 
 // =========================
 // START RECORDING
 // =========================
-export async function startRecording(sessionId) {
+async function startRecording(sessionId) {
 
     console.log("[REC START REQUEST]", {
         sessionId,
         time: Date.now()
     });
+
+    // 🔥 FIX: cancel any pending cleanup
+    if (cleanupTimeout) {
+        clearTimeout(cleanupTimeout);
+        cleanupTimeout = null;
+        console.log("[CANCELLED OLD CLEANUP]");
+    }
 
     if (isRecording) {
         console.log("[REC SKIP] Already recording");
@@ -57,11 +67,10 @@ export async function startRecording(sessionId) {
         };
 
         mediaRecorder.start();
-
         console.log("[REC STARTED]");
 
         // =========================
-        // CHUNK LOOP (WITH OVERLAP)
+        // CHUNK LOOP
         // =========================
         chunkTimer = setInterval(() => {
 
@@ -71,7 +80,6 @@ export async function startRecording(sessionId) {
 
                 console.log("[REC CHUNK TRIGGER]", Date.now());
 
-                // 🔥 overlap buffer
                 setTimeout(() => {
 
                     if (!isRecording) return;
@@ -83,7 +91,6 @@ export async function startRecording(sessionId) {
                         console.warn("[REC STOP ERROR]", err);
                     }
 
-                    // 🔥 restart after small delay
                     setTimeout(() => {
 
                         if (!isRecording) return;
@@ -98,10 +105,9 @@ export async function startRecording(sessionId) {
                     }, 200);
 
                 }, 200);
-
             }
 
-        }, 8000); // 8s sweet spot
+        }, 8000);
 
     } catch (err) {
         console.error("[REC MIC ERROR]", err);
@@ -122,12 +128,10 @@ async function uploadChunk(blob, sessionId) {
     });
 
     const formData = new FormData();
-
     formData.append("session_id", sessionId);
     formData.append("audio", blob, "chunk.webm");
 
     try {
-
         const res = await fetch("http://localhost:5000/api/transcripts/upload", {
             method: "POST",
             body: formData
@@ -139,14 +143,12 @@ async function uploadChunk(blob, sessionId) {
 
             console.warn("[UPLOAD REJECTED]", res.status);
 
-            // 🔥 FIX: ignore final chunk after session ends
             if (res.status === 400) {
                 console.log("[IGNORE FINAL CHUNK AFTER SESSION END]");
                 return;
             }
 
-            // only stop for real errors
-            stopRecording();
+            stopRecording(true);
         }
 
     } catch (err) {
@@ -156,16 +158,15 @@ async function uploadChunk(blob, sessionId) {
 
 
 // =========================
-// STOP RECORDING
+// STOP RECORDING (FIXED)
 // =========================
-export function stopRecording() {
+function stopRecording(force = false) {
 
-    console.log("[REC STOP REQUEST]", Date.now());
-
-    if (!isRecording) {
-        console.log("[REC STOP SKIP]");
-        return;
-    }
+    console.log("[REC STOP REQUEST]", {
+        force,
+        isRecording,
+        time: Date.now()
+    });
 
     isRecording = false;
 
@@ -175,15 +176,14 @@ export function stopRecording() {
         console.log("[REC INTERVAL CLEARED]");
     }
 
-    // 🔥 final chunk flush
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-
-        console.log("[FINAL CHUNK FLUSH]");
-
+    if (mediaRecorder) {
         try {
-            mediaRecorder.stop();
+            if (mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+                console.log("[RECORDER FORCE STOP]");
+            }
         } catch (err) {
-            console.warn("[FINAL STOP ERROR]", err);
+            console.warn("[RECORDER STOP ERROR]", err);
         }
     }
 
@@ -200,8 +200,20 @@ export function stopRecording() {
         console.log("[REC STREAM RELEASED]");
     }
 
-    setTimeout(() => {
+    mediaRecorder = null;
+
+    // 🔥 FIX: controlled cleanup
+    cleanupTimeout = setTimeout(() => {
         currentSessionId = null;
+        cleanupTimeout = null;
         console.log("[REC SESSION CLEARED]");
     }, 500);
+
+    console.log("[REC FULLY STOPPED]");
 }
+
+
+// =========================
+// EXPORTS
+// =========================
+export { startRecording, stopRecording };

@@ -22,3 +22,5 @@ class Config:
     )
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False # event tracking for memory savings
+
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")

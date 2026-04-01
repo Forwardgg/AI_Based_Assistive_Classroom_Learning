@@ -79,7 +79,7 @@ def call_gemini(messages):
 
     return call_llm(
         messages=messages,
-        model="google/gemini-2.0-flash-lite",
+        model="google/gemini-2.0-flash-lite-001",
         temperature=0.2,
         max_tokens=700
     )

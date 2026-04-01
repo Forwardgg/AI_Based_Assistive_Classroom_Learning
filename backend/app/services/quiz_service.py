@@ -23,7 +23,6 @@ def extract_json(text):
     except:
         pass
 
-    # try to extract JSON block
     match = re.search(r"\[.*\]", text, re.DOTALL)
 
     if match:
@@ -41,6 +40,21 @@ def extract_json(text):
 def generate_quiz_for_partition(partition_id, session_id):
 
     print(f"[QUIZ] Generating for partition {partition_id}")
+
+    # =========================
+    # 0. PREVENT DUPLICATES
+    # =========================
+    existing = Quiz.query.filter_by(partition_id=partition_id).first()
+    if existing:
+        print("[QUIZ] Already exists, skipping generation")
+
+        # still notify students
+        socketio.emit(
+            "quiz_ready",
+            {"partition_id": partition_id},
+            room=f"session_{session_id}"
+        )
+        return
 
     # =========================
     # 1. GET TRANSCRIPT
@@ -62,12 +76,10 @@ def generate_quiz_for_partition(partition_id, session_id):
     # =========================
     # 2. CLEAN TRANSCRIPT
     # =========================
-    cleaned = transcript.transcript_text
-
-    if not cleaned:
+    try:
         cleaned = clean_transcript(raw_text)
-        transcript.cleaned_text = cleaned
-        db.session.commit()
+    except:
+        cleaned = raw_text  # fallback
 
     # =========================
     # 3. GENERATE MCQs

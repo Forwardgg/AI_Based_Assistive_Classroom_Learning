@@ -1,7 +1,7 @@
 # backend/run.py
 
 import eventlet
-eventlet.monkey_patch()   # 🔥 MUST be first
+eventlet.monkey_patch()
 
 from app import create_app, socketio
 
@@ -11,6 +11,5 @@ if __name__ == "__main__":
     socketio.run(
         app,
         host="0.0.0.0",
-        port=5000,
-        debug=True
+        port=5000
     )

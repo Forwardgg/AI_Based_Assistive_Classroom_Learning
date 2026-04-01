@@ -1,3 +1,5 @@
+# backend/app/routes/session_routes.py
+
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from flask_socketio import join_room
@@ -17,12 +19,58 @@ session_controls = {}
 
 
 # =========================
-# HELPER: RUN QUIZ WITH CONTEXT
+# 🔥 FIX: ADD THIS FUNCTION (CRITICAL)
 # =========================
 def run_quiz_with_context(app, partition_id, session_id):
     with app.app_context():
         generate_quiz_for_partition(partition_id, session_id)
 
+
+# =========================
+# 🔥 CENTRAL STATE EMITTER
+# =========================
+def emit_session_state(session_id, room):
+    session = Session.query.get(session_id)
+
+    if not session:
+        return
+
+    socketio.emit(
+        "session_state",
+        {
+            "session_id": session_id,
+            "status": session.status,
+            "current_partition_index": session.current_partition_index,
+            "start_time": session.partition_start_time,
+            "end_time": session.partition_end_time,
+            "server_time": int(time.time())
+        },
+        room=room
+    )
+
+# =========================
+# 🔥 ACTIVE SESSION (FIXED FINAL)
+# =========================
+@session_bp.route("/course/<int:course_id>/active", methods=["GET"])
+@jwt_required()
+def get_active_session(course_id):
+
+    session = (
+        Session.query
+        .filter_by(course_id=course_id)
+        .filter(Session.status == "active")   # 🔥 ONLY ACTIVE
+        .order_by(Session.id.desc())
+        .first()
+    )
+
+    if not session:
+        return jsonify({"exists": False}), 200
+
+    return jsonify({
+        "exists": True,
+        "session_id": session.id,
+        "status": session.status
+    }), 200
 
 # =========================
 # CREATE SESSION
@@ -64,21 +112,17 @@ def create_session():
     db.session.flush()
 
     for index, p in enumerate(partitions, start=1):
-
         partition = SessionPartition(
             session_id=new_session.id,
             partition_index=index,
             start_minute=p["start_minute"],
             end_minute=p["end_minute"]
         )
-
         db.session.add(partition)
 
     db.session.commit()
 
-    return jsonify({
-        "session": new_session.to_dict()
-    }), 201
+    return jsonify({"session": new_session.to_dict()}), 201
 
 
 # =========================
@@ -100,6 +144,8 @@ def start_session(session_id):
         "paused": False,
         "stopped": False
     }
+
+    emit_session_state(session_id, f"session_{session_id}")
 
     app = current_app._get_current_object()
 
@@ -127,13 +173,10 @@ def pause_session(session_id):
     session.status = "paused"
     db.session.commit()
 
+    session_controls.setdefault(session_id, {})
     session_controls[session_id]["paused"] = True
 
-    socketio.emit(
-        "session_paused",
-        {"session_id": session_id},
-        room=f"session_{session_id}"
-    )
+    emit_session_state(session_id, f"session_{session_id}")
 
     return jsonify({"message": "Paused"}), 200
 
@@ -153,19 +196,16 @@ def resume_session(session_id):
     session.status = "active"
     db.session.commit()
 
+    session_controls.setdefault(session_id, {})
     session_controls[session_id]["paused"] = False
 
-    socketio.emit(
-        "session_resumed",
-        {"session_id": session_id},
-        room=f"session_{session_id}"
-    )
+    emit_session_state(session_id, f"session_{session_id}")
 
     return jsonify({"message": "Resumed"}), 200
 
 
 # =========================
-# STOP SESSION
+# STOP SESSION (FIXED)
 # =========================
 @session_bp.route("/<int:session_id>/stop", methods=["POST"])
 @jwt_required()
@@ -174,23 +214,30 @@ def stop_session(session_id):
     session = Session.query.get(session_id)
 
     if not session:
-        return jsonify({"message": "Cannot stop session"}), 404
+        return jsonify({"message": "Session not found"}), 404
 
+    session.status = "stopped"
+    session.current_partition_index = None
+    session.partition_start_time = None
+    session.partition_end_time = None
+
+    db.session.commit()
+
+    session_controls.setdefault(session_id, {})
     session_controls[session_id]["stopped"] = True
 
-    return jsonify({"message": "Stopping"}), 200
+    emit_session_state(session_id, f"session_{session_id}")
+
+    return jsonify({"message": "Session stopped"}), 200
 
 
 # =========================
-# SOCKET ROOM JOIN
+# SOCKET JOIN
 # =========================
 @socketio.on("join_session")
 def handle_join_session(data):
 
-    if isinstance(data, dict):
-        session_id = data.get("session_id")
-    else:
-        session_id = data
+    session_id = data.get("session_id") if isinstance(data, dict) else data
 
     if not session_id:
         return
@@ -200,16 +247,17 @@ def handle_join_session(data):
 
     print(f"[SOCKET] Client joined room {room}")
 
+    emit_session_state(session_id, request.sid)
+
 
 # =========================
-# TIMER ENGINE (SOFT PAUSE)
+# TIMER ENGINE
 # =========================
 def run_session_timer(app, session_id):
 
     with app.app_context():
 
         session = Session.query.get(session_id)
-
         if not session:
             return
 
@@ -225,7 +273,6 @@ def run_session_timer(app, session_id):
         for partition in partitions:
 
             duration_seconds = (partition.end_minute - partition.start_minute) * 60
-
             if duration_seconds <= 0:
                 continue
 
@@ -239,47 +286,15 @@ def run_session_timer(app, session_id):
             session.partition_end_time = end_time
             db.session.commit()
 
-            socketio.emit(
-                "partition_started",
-                {
-                    "session_id": session_id,
-                    "partition_index": partition.partition_index,
-                    "start_time": start_time,
-                    "end_time": end_time
-                },
-                room=room
-            )
+            emit_session_state(session_id, room)
 
             while True:
-
                 now = int(time.time())
-                remaining = end_time - now
-
-                if remaining <= 0:
+                if end_time - now <= 0:
                     break
 
                 session = Session.query.get(session_id)
-
                 if not session or session.status not in ["active", "paused"]:
-                    return
-
-                if session_controls.get(session_id, {}).get("stopped"):
-
-                    session.status = "stopped"
-                    session.current_partition_index = None
-                    db.session.commit()
-
-                    socketio.emit(
-                        "session_stopped",
-                        {"session_id": session_id},
-                        room=room
-                    )
-
-                    socketio.sleep(3)
-
-                    for p in partitions:
-                        finalize_partition_transcript(p.id)
-
                     return
 
                 if session_controls.get(session_id, {}).get("paused"):
@@ -288,9 +303,6 @@ def run_session_timer(app, session_id):
 
                 socketio.sleep(1)
 
-            # =========================
-            # PARTITION FINISHED
-            # =========================
             socketio.emit(
                 "partition_finished",
                 {
@@ -303,54 +315,49 @@ def run_session_timer(app, session_id):
 
             finalize_partition_transcript(partition.id)
 
-            # AUTO PAUSE
             session.status = "paused"
             db.session.commit()
 
+            session_controls.setdefault(session_id, {})
             session_controls[session_id]["paused"] = True
 
-            socketio.emit(
-                "session_paused",
-                {"session_id": session_id},
-                room=room
-            )
+            emit_session_state(session_id, room)
 
-            print("[AUTO PAUSE AFTER PARTITION]")
-
-            # WAIT UNTIL RESUME
             while session_controls.get(session_id, {}).get("paused"):
-
-                session = Session.query.get(session_id)
-
-                if not session or session_controls.get(session_id, {}).get("stopped"):
-                    return
-
                 socketio.sleep(1)
 
-            print("[RESUMED → NEXT PARTITION]")
-
-        # SESSION COMPLETE
         session.status = "completed"
         session.current_partition_index = None
         session.partition_start_time = None
         session.partition_end_time = None
-
         db.session.commit()
 
-        socketio.emit(
-            "session_completed",
-            {"session_id": session_id},
-            room=room
-        )
-
-        socketio.sleep(3)
-
-        for p in partitions:
-            finalize_partition_transcript(p.id)
+        emit_session_state(session_id, room)
 
 
 # =========================
-# GENERATE QUIZ (FIXED)
+# GET SESSION
+# =========================
+@session_bp.route("/<int:session_id>", methods=["GET"])
+@jwt_required()
+def get_session(session_id):
+
+    session = Session.query.get(session_id)
+
+    if not session:
+        return jsonify({"message": "Session not found"}), 404
+
+    return jsonify({
+        "id": session.id,
+        "status": session.status,
+        "current_partition_index": session.current_partition_index,
+        "start_time": session.partition_start_time,
+        "end_time": session.partition_end_time
+    }), 200
+
+
+# =========================
+# GENERATE QUIZ
 # =========================
 @session_bp.route("/<int:session_id>/generate-quiz", methods=["POST"])
 @jwt_required()
@@ -377,24 +384,3 @@ def generate_quiz(session_id):
     )
 
     return jsonify({"message": "Quiz generation started"}), 200
-
-
-# =========================
-# GET SESSION
-# =========================
-@session_bp.route("/<int:session_id>", methods=["GET"])
-@jwt_required()
-def get_session(session_id):
-
-    session = Session.query.get(session_id)
-
-    if not session:
-        return jsonify({"message": "Session not found"}), 404
-
-    return jsonify({
-        "id": session.id,
-        "status": session.status,
-        "current_partition_index": session.current_partition_index,
-        "start_time": session.partition_start_time,
-        "end_time": session.partition_end_time
-    })
