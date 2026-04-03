@@ -2,10 +2,13 @@
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+
 from app import db
 from app.models.course import Course
 from app.models.enrollment import Enrollment
 from app.models.user import User
+from app.models.session import Session
+
 import random
 import string
 
@@ -115,3 +118,47 @@ def get_courses():
         courses = [e.course for e in enrollments]
 
     return jsonify([c.to_dict() for c in courses]), 200
+
+# 🔹 Get sessions for a course (with partitions)
+@course_bp.route("/<int:course_id>/sessions", methods=["GET"])
+@jwt_required()
+def get_course_sessions(course_id):
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    course = Course.query.get(course_id)
+
+    if not course:
+        return jsonify({"error": "Course not found"}), 404
+
+    # 🔐 Access control
+    if user.role == "professor":
+        if course.professor_id != user_id:
+            return jsonify({"error": "Unauthorized"}), 403
+    else:
+        enrolled = Enrollment.query.filter_by(
+            student_id=user_id,
+            course_id=course_id
+        ).first()
+
+        if not enrolled:
+            return jsonify({"error": "Unauthorized"}), 403
+
+    sessions = Session.query.filter_by(course_id=course_id).order_by(Session.id.desc()).all()
+
+    result = []
+
+    for s in sessions:
+        result.append({
+            "id": s.id,
+            "status": s.status,
+            "duration_minutes": s.duration_minutes,
+            "partitions": [
+                p.to_dict() for p in s.partitions
+            ]
+        })
+
+    return jsonify(result), 200

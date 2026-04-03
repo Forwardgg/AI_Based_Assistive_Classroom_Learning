@@ -45,6 +45,7 @@ def create_app():
     from .models.transcript import Transcript
     from .models.quiz import Quiz
     from .models.question import Question
+    from .models.lecture_notes import LectureNotes
 
     # =========================
     # TEST DB CONNECTION

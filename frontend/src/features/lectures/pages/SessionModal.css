@@ -1,29 +1,140 @@
+/* =========================
+   OVERLAY
+========================= */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0,0,0,0.4);
+
+  background: rgba(0, 0, 0, 0.5);
+
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+
+  z-index: 1000;
 }
 
+/* =========================
+   MODAL BOX
+========================= */
 .modal {
-  background: white;
-  padding: 30px;
+  background: #ffffff;
+  padding: 24px 22px;
   border-radius: 12px;
-  width: 300px;
+
+  width: 100%;
+  max-width: 400px;
+
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+
+  animation: fadeIn 0.2s ease;
 }
 
+/* =========================
+   TITLE
+========================= */
+.modal h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* =========================
+   LABELS
+========================= */
+.modal label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: #374151;
+  font-weight: 500;
+}
+
+/* =========================
+   INPUTS
+========================= */
 .modal input {
   width: 100%;
-  margin-bottom: 15px;
-  padding: 6px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+
+  font-size: 14px;
+  outline: none;
+
+  transition: 0.2s ease;
 }
 
+.modal input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* =========================
+   BUTTONS
+========================= */
 .modal-buttons {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.modal-buttons button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  transition: 0.2s ease;
+}
+
+/* Cancel */
+.modal-buttons button:first-child {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.modal-buttons button:first-child:hover {
+  background: #d1d5db;
+}
+
+/* Start */
+.modal-buttons button:last-child {
+  background: #2563eb;
+  color: white;
+}
+
+.modal-buttons button:last-child:hover {
+  background: #1d4ed8;
+}
+
+/* =========================
+   ANIMATION
+========================= */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 500px) {
+  .modal {
+    width: 90%;
+    padding: 20px;
+  }
 }

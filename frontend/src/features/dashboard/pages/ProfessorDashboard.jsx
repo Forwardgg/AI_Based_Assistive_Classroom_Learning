@@ -1,5 +1,3 @@
-// frontend/src/features/dashboard/pages/ProfessorDashboard.jsx
-
 import { useEffect, useState, useRef } from "react";
 import { getCourses } from "../../courses/courseAPI";
 import CreateCourse from "../../courses/pages/CreateCourse";
@@ -53,13 +51,11 @@ const ProfessorDashboard = () => {
   }, []);
 
   // =========================
-  // SOCKET LISTENERS (FIXED)
+  // SOCKET LISTENERS
   // =========================
   useEffect(() => {
 
     const handleSessionState = (data) => {
-      console.log("[PROF SESSION STATE]", data);
-
       setSessionStatus(data.status);
       setCurrentPartition(data.current_partition_index);
 
@@ -72,16 +68,12 @@ const ProfessorDashboard = () => {
 
       setPartitionEndTime(correctedEnd);
 
-      // ✅ START ONLY when partition exists
       if (data.status === "active" && data.current_partition_index) {
         startRecording(data.session_id);
       }
     };
 
     const handlePartitionFinished = (data) => {
-      console.log("[PARTITION FINISHED]", data);
-
-      // ✅ STOP only here
       stopRecording(true);
 
       setLastPartitionId(data.partition_id);
@@ -165,7 +157,6 @@ const ProfessorDashboard = () => {
   // CREATE + START
   // =========================
   const handleCreateAndStart = async (sessionData) => {
-
     try {
       const res = await api.post("/sessions", sessionData);
       const sessionId = res.data.session.id;
@@ -187,7 +178,6 @@ const ProfessorDashboard = () => {
   // QUIZ ACTIONS
   // =========================
   const handleGenerateQuiz = async () => {
-
     if (!activeSession || !lastPartitionId) return;
 
     try {
@@ -235,29 +225,38 @@ const ProfessorDashboard = () => {
       <CreateCourse onCourseCreated={fetchCourses} />
 
       {courses.map(course => (
-        <div key={course.id}>
+        <div key={course.id} className="course-card">
 
-          <h3>{course.course_name}</h3>
-          <p>{course.semester} {course.year}</p>
-          <p>Class Code: {course.class_code}</p>
+          <h3 className="course-title">{course.course_name}</h3>
+          <p className="course-meta">{course.semester} {course.year}</p>
+          <p className="course-meta">Code: {course.class_code}</p>
 
           {activeSession && sessionStatus !== "completed" ? (
             <>
-              <p>Status: {sessionStatus}</p>
-              <p>Partition: {currentPartition}</p>
-              <p>Time Left: {timeLeft}s</p>
+              <div className="session-info">
+                <p>Status: {sessionStatus}</p>
+                <p>Partition: {currentPartition}</p>
+                <p>Time Left: {timeLeft}s</p>
+              </div>
 
               {sessionStatus === "active" && (
-                <button onClick={handlePause}>Pause</button>
+                <button className="btn btn-pause" onClick={handlePause}>
+                  Pause
+                </button>
               )}
 
-              <button onClick={handleStop}>Stop</button>
+              <button className="btn btn-stop" onClick={handleStop}>
+                Stop
+              </button>
             </>
           ) : (
-            <button onClick={() => {
-              setSelectedCourse(course.id);
-              setShowModal(true);
-            }}>
+            <button
+              className="btn btn-start"
+              onClick={() => {
+                setSelectedCourse(course.id);
+                setShowModal(true);
+              }}
+            >
               Start Session
             </button>
           )}
@@ -270,22 +269,33 @@ const ProfessorDashboard = () => {
 
           <p>Partition complete. What next?</p>
 
-          {loadingQuiz && <p>Generating quiz...</p>}
+          {loadingQuiz && <p className="loading-text">Generating quiz...</p>}
 
           {!quizGenerated && !loadingQuiz && (
-            <button onClick={handleGenerateQuiz}>
+            <button className="btn btn-quiz" onClick={handleGenerateQuiz}>
               Generate AI Quiz
             </button>
           )}
 
           {quizGenerated && (
-            <>
-              <p>✅ Quiz Generated</p>
-              <ProfessorQuizView partitionId={lastPartitionId} />
-            </>
-          )}
+  <>
+    <p>✅ Quiz Generated</p>
 
-          <button onClick={handleResume}>
+    <button
+      className="btn btn-quiz"
+      onClick={() => setShowQuizPrompt(false)}
+    >
+      View Quiz
+    </button>
+
+    <ProfessorQuizView
+      partitionId={lastPartitionId}
+      onClose={() => setQuizGenerated(false)}
+    />
+  </>
+)}
+
+          <button className="btn btn-resume" onClick={handleResume}>
             Resume Lecture
           </button>
 

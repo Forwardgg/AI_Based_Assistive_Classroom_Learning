@@ -8,8 +8,11 @@ from app import db, socketio
 from app.models.session import Session
 from app.models.session_partition import SessionPartition
 from app.models.course import Course
+from app.models.lecture_notes import LectureNotes
+
 from app.services.transcript_service import finalize_partition_transcript
 from app.services.quiz_service import generate_quiz_for_partition
+
 
 import time
 
@@ -384,3 +387,14 @@ def generate_quiz(session_id):
     )
 
     return jsonify({"message": "Quiz generation started"}), 200
+
+@session_bp.route("/<int:session_id>/notes", methods=["GET"])
+@jwt_required()
+def get_session_notes(session_id):
+
+    notes = LectureNotes.query.filter_by(session_id=session_id).first()
+
+    if not notes:
+        return jsonify({"error": "No notes found"}), 404
+
+    return jsonify(notes.to_dict()), 200

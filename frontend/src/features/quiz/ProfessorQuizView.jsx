@@ -1,42 +1,61 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
+import "./ProfessorQuizView.css";
 
-const ProfessorQuizView = ({ partitionId }) => {
+const ProfessorQuizView = ({ partitionId, onClose }) => {
 
   const [questions, setQuestions] = useState([]);
 
   useEffect(() => {
-    const fetchQuiz = async () => {
+  const fetchQuiz = async () => {
+    try {
       const res = await api.get(`/quiz/partition/${partitionId}`);
-      setQuestions(res.data.questions);
-    };
+      setQuestions(res.data.questions || []);
+    } catch (err) {
+      console.error("Quiz not found");
+      setQuestions([]);
+    }
+  };
 
-    fetchQuiz();
-  }, [partitionId]);
+  fetchQuiz();
+}, [partitionId]);
 
   return (
-    <div>
-      <h3>Generated Quiz</h3>
+  <div className="quiz-overlay">
+    <div className="quiz-modal large">
 
-      {questions.map(q => (
-        <div key={q.id}>
-          <p>{q.question_text}</p>
+      <h2 className="quiz-title">Generated Quiz</h2>
 
-          {Object.entries(q.options).map(([key, val]) => (
-            <p
-              key={key}
-              style={{
-                fontWeight: q.correct === key ? "bold" : "normal",
-                color: q.correct === key ? "green" : "black"
-              }}
-            >
-              {key}: {val}
-            </p>
-          ))}
+      {questions.map((q, index) => (
+        <div key={q.id} className="question-card">
+
+          <p className="question-text">
+            {index + 1}. {q.question_text}
+          </p>
+
+          <div className="options-list">
+            {Object.entries(q.options).map(([key, val]) => (
+              <div
+                key={key}
+                className={`option ${
+                  q.correct === key ? "correct" : ""
+                }`}
+              >
+                {key}: {val}
+              </div>
+            ))}
+          </div>
+
         </div>
       ))}
+
+      <button className="btn btn-close" onClick={onClose}>
+        Close
+      </button>
+
     </div>
-  );
+  </div>
+);
 };
 
 export default ProfessorQuizView;

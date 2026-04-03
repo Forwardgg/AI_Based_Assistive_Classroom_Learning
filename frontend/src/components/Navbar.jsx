@@ -1,5 +1,3 @@
-// frontend/src/components/Navbar.jsx
-
 import { Link, useLocation } from "react-router-dom";
 import { useContext, useState } from "react";
 import { AuthContext } from "../features/auth/AuthContext";
@@ -10,16 +8,32 @@ const Navbar = () => {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // ✅ BASE PATH (IMPORTANT)
+  const basePath =
+    user?.role === "professor"
+      ? "/dashboard/professor"
+      : "/dashboard/student";
+
   const isActive = (path) => location.pathname === path;
 
-  const links = user?.role === "professor" 
-    ? ["Dashboard", "Courses", "Analytics"]
-    : ["Dashboard", "My Courses", "Results"];
+  const links =
+    user?.role === "professor"
+      ? ["Dashboard", "Courses", "Analytics"]
+      : ["Dashboard", "My Courses", "Results"];
 
-  // Get initials from name
   const getInitials = () => {
     if (!user?.name) return "U";
     return user.name.charAt(0).toUpperCase();
+  };
+
+  // ✅ FUNCTION TO GENERATE ROUTES
+  const getPath = (link) => {
+    const slug = link.toLowerCase().replace(" ", "-");
+
+    // special case for dashboard
+    if (slug === "dashboard") return basePath;
+
+    return `${basePath}/${slug}`;
   };
 
   return (
@@ -30,57 +44,92 @@ const Navbar = () => {
           <span className="brand">AIBACLS</span>
         </div>
 
+        {/* DESKTOP NAV */}
         <div className="nav-center desktop">
-          {links.map(link => (
-            <Link 
-              key={link} 
-              to={`/${link.toLowerCase().replace(' ', '-')}`}
-              className={isActive(`/${link.toLowerCase().replace(' ', '-')}`) ? "active" : ""}
-            >
-              {link}
-            </Link>
-          ))}
+          {links.map((link) => {
+            const path = getPath(link);
+            return (
+              <Link
+                key={link}
+                to={path}
+                className={isActive(path) ? "active" : ""}
+              >
+                {link}
+              </Link>
+            );
+          })}
         </div>
 
+        {/* USER DROPDOWN */}
         <div className="nav-right desktop">
           <button onClick={() => setMenuOpen(!menuOpen)} className="user-btn">
             <span className="avatar">{getInitials()}</span>
-            <span className="user-name">{user?.name?.split(' ')[0] || "User"}</span>
+            <span className="user-name">
+              {user?.name?.split(" ")[0] || "User"}
+            </span>
             <span className="caret">{menuOpen ? "▲" : "▼"}</span>
           </button>
-          
+
           {menuOpen && (
             <div className="dropdown">
               <div className="user-info">
-                <div className="user-fullname">{user?.name || "User"}</div>
-                <div className="user-email">{user?.email || "email@example.com"}</div>
-                <span className={`role-badge ${user?.role}`}>{user?.role || "student"}</span>
+                <div className="user-fullname">
+                  {user?.name || "User"}
+                </div>
+                <div className="user-email">
+                  {user?.email || "email@example.com"}
+                </div>
+                <span className={`role-badge ${user?.role}`}>
+                  {user?.role || "student"}
+                </span>
               </div>
-              <Link to="/profile" onClick={() => setMenuOpen(false)}>Profile</Link>
-              <button onClick={logout} className="logout-btn">Logout</button>
+              <Link to="/profile" onClick={() => setMenuOpen(false)}>
+                Profile
+              </Link>
+              <button onClick={logout} className="logout-btn">
+                Logout
+              </button>
             </div>
           )}
         </div>
 
-        <button className="mobile-menu" onClick={() => setMenuOpen(!menuOpen)}>
+        {/* MOBILE MENU BUTTON */}
+        <button
+          className="mobile-menu"
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
           ☰
         </button>
       </div>
 
+      {/* MOBILE NAV */}
       {menuOpen && (
         <div className="mobile-nav">
-          {links.map(link => (
-            <Link key={link} to="/" onClick={() => setMenuOpen(false)}>
-              {link}
-            </Link>
-          ))}
+          {links.map((link) => {
+            const path = getPath(link);
+            return (
+              <Link
+                key={link}
+                to={path}
+                onClick={() => setMenuOpen(false)}
+              >
+                {link}
+              </Link>
+            );
+          })}
           <hr />
           <div className="mobile-user">
             <div>{user?.name || "User"}</div>
-            <div className="mobile-email">{user?.email || "email@example.com"}</div>
+            <div className="mobile-email">
+              {user?.email || "email@example.com"}
+            </div>
           </div>
-          <Link to="/profile" onClick={() => setMenuOpen(false)}>Profile</Link>
-          <button onClick={logout} className="mobile-logout-btn">Logout</button>
+          <Link to="/profile" onClick={() => setMenuOpen(false)}>
+            Profile
+          </Link>
+          <button onClick={logout} className="mobile-logout-btn">
+            Logout
+          </button>
         </div>
       )}
     </nav>

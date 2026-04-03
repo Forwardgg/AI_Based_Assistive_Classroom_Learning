@@ -1,0 +1,187 @@
+/* =========================
+   MAIN CONTAINER
+========================= */
+.courses-container {
+  padding: 24px;
+  color: #ffffff;
+}
+
+/* =========================
+   HEADER
+========================= */
+.courses-header h1 {
+  font-size: 28px;
+  margin-bottom: 5px;
+}
+
+.courses-header p {
+  color: #aaa;
+  margin-bottom: 20px;
+}
+
+/* =========================
+   CONTROLS (SEARCH + FILTER + SORT)
+========================= */
+.courses-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+/* SEARCH INPUT */
+.search-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+  background: #1e1e1e;
+  color: #fff;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: #777;
+}
+
+.search-input:focus {
+  border-color: #3a86ff;
+}
+
+/* SELECT DROPDOWNS */
+.filter-select,
+.sort-select {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+  background: #1e1e1e;
+  color: #fff;
+  cursor: pointer;
+}
+
+.filter-select:focus,
+.sort-select:focus {
+  border-color: #3a86ff;
+}
+
+/* =========================
+   COURSE SECTION
+========================= */
+.courses-section {
+  margin-top: 10px;
+}
+
+/* EMPTY STATE */
+.empty-state {
+  color: #888;
+  font-size: 14px;
+}
+
+/* =========================
+   GRID
+========================= */
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+/* =========================
+   CARD
+========================= */
+.course-card {
+  background: #1e1e1e;
+  border-radius: 12px;
+  padding: 18px;
+  border: 1px solid #2a2a2a;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.course-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* =========================
+   COURSE INFO
+========================= */
+.course-info h3 {
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.meta {
+  color: #aaa;
+  font-size: 13px;
+}
+
+.code {
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+.code span {
+  font-weight: bold;
+  color: #4caf50;
+}
+
+/* =========================
+   ACTION BUTTONS
+========================= */
+.course-actions {
+  margin-top: 15px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* BUTTON BASE */
+.btn {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* OPEN */
+.btn-open {
+  background: #3a86ff;
+  color: #fff;
+}
+
+.btn-open:hover {
+  background: #2f6fd6;
+}
+
+/* START */
+.btn-start {
+  background: #4caf50;
+  color: #fff;
+}
+
+.btn-start:hover {
+  background: #3d9442;
+}
+
+/* COPY */
+.btn-copy {
+  background: #333;
+  color: #ddd;
+}
+
+.btn-copy:hover {
+  background: #444;
+}
+
+/* =========================
+   LOADING TEXT
+========================= */
+.courses-section p {
+  font-size: 14px;
+}

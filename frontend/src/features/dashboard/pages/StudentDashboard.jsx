@@ -1,5 +1,3 @@
-// frontend/src/features/dashboard/pages/StudentDashboard.jsx
-
 import { useEffect, useState, useRef } from "react";
 import { getCourses, joinCourse } from "../../courses/courseAPI";
 import socket from "../../../services/socket";
@@ -34,7 +32,7 @@ const StudentDashboard = () => {
     try {
       const res = await getCourses();
       setCourses(res.data);
-    } catch (err) {
+    } catch {
       console.error("Failed to fetch courses");
     } finally {
       setLoading(false);
@@ -46,7 +44,7 @@ const StudentDashboard = () => {
   }, []);
 
   // =========================
-  // SYNC FUNCTION
+  // SYNC SESSION
   // =========================
   const syncSessionState = async (sessionId) => {
     try {
@@ -56,9 +54,8 @@ const StudentDashboard = () => {
       setSessionStatus(data.status);
       setCurrentPartition(data.current_partition_index);
       setPartitionEndTime(data.end_time);
-
-    } catch (err) {
-      console.error("Sync failed", err);
+    } catch {
+      console.error("Sync failed");
     }
   };
 
@@ -68,12 +65,10 @@ const StudentDashboard = () => {
   const checkActiveSession = async (courseId) => {
     try {
       const res = await api.get(`/sessions/course/${courseId}/active`);
-
       if (res.data.exists) {
         setSessionStatus(res.data.status);
         return res.data.session_id;
       }
-
       return null;
     } catch {
       return null;
@@ -89,20 +84,16 @@ const StudentDashboard = () => {
 
     await syncSessionState(sessionId);
 
-    // 🔥 CRITICAL: fallback sync (prevents missed events)
     setTimeout(() => {
       syncSessionState(sessionId);
     }, 300);
   };
 
   // =========================
-  // SOCKET LISTENERS (FIXED)
+  // SOCKET LISTENERS
   // =========================
   useEffect(() => {
-
     const handleSessionState = (data) => {
-      console.log("[SESSION STATE RECEIVED]", data);
-
       setSessionStatus(data.status);
       setCurrentPartition(data.current_partition_index);
 
@@ -117,21 +108,11 @@ const StudentDashboard = () => {
     };
 
     const handleCompleted = () => {
-      setSessionStatus("completed");
-      setCurrentPartition(null);
-      setTimeLeft(null);
-      setPartitionEndTime(null);
-      setActiveSession(null);
-      setShowQuiz(false);
+      resetSession();
     };
 
     const handleStopped = () => {
-      setSessionStatus("stopped");
-      setCurrentPartition(null);
-      setTimeLeft(null);
-      setPartitionEndTime(null);
-      setActiveSession(null);
-      setShowQuiz(false);
+      resetSession();
     };
 
     const handleQuiz = (data) => {
@@ -150,38 +131,19 @@ const StudentDashboard = () => {
       socket.off("session_stopped", handleStopped);
       socket.off("quiz_ready", handleQuiz);
     };
-
   }, []);
 
   // =========================
-  // RECONNECT HANDLER
+  // RESET SESSION
   // =========================
-  useEffect(() => {
-    const handleReconnect = () => {
-      if (activeSession) {
-        socket.emit("join_session", { session_id: activeSession });
-        syncSessionState(activeSession);
-      }
-    };
-
-    socket.on("connect", handleReconnect);
-
-    return () => socket.off("connect", handleReconnect);
-
-  }, [activeSession]);
-
-  // =========================
-  // HEARTBEAT SYNC
-  // =========================
-  useEffect(() => {
-    if (!activeSession) return;
-
-    const interval = setInterval(() => {
-      syncSessionState(activeSession);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [activeSession]);
+  const resetSession = () => {
+    setSessionStatus(null);
+    setCurrentPartition(null);
+    setTimeLeft(null);
+    setPartitionEndTime(null);
+    setActiveSession(null);
+    setShowQuiz(false);
+  };
 
   // =========================
   // TIMER
@@ -197,12 +159,7 @@ const StudentDashboard = () => {
 
     updateTimer();
 
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-
     intervalRef.current = setInterval(updateTimer, 500);
-
     return () => clearInterval(intervalRef.current);
 
   }, [partitionEndTime, sessionStatus]);
@@ -220,9 +177,11 @@ const StudentDashboard = () => {
         class_code: classCode,
         roll_no: rollNo,
       });
+
       setClassCode("");
       setRollNo("");
       fetchCourses();
+
     } catch {
       alert("Failed to join course.");
     } finally {
@@ -231,10 +190,12 @@ const StudentDashboard = () => {
   };
 
   return (
-    <div className="dashboard">
+    <div className="student-container">
+
       <h1>Student Dashboard</h1>
 
-      <form onSubmit={handleJoinCourse}>
+      {/* JOIN FORM */}
+      <form className="join-card" onSubmit={handleJoinCourse}>
         <input
           value={classCode}
           onChange={(e) => setClassCode(e.target.value)}
@@ -250,14 +211,16 @@ const StudentDashboard = () => {
         </button>
       </form>
 
+      {/* COURSES */}
       <div className="courses-grid">
         {courses.map((course) => (
           <div key={course.id} className="course-card">
-            <h3>{course.course_name}</h3>
-            <p>{course.semester} {course.year}</p>
+
+            <h3 className="course-title">{course.course_name}</h3>
+            <p className="course-meta">{course.semester} {course.year}</p>
 
             {activeSession ? (
-              <div className="live-session">
+              <div className="session-info">
                 <p>Status: {sessionStatus}</p>
 
                 {currentPartition && (
@@ -270,6 +233,7 @@ const StudentDashboard = () => {
               </div>
             ) : (
               <button
+                className="btn btn-start"
                 onClick={async () => {
                   const sessionId = await checkActiveSession(course.id);
 
@@ -288,12 +252,14 @@ const StudentDashboard = () => {
         ))}
       </div>
 
+      {/* QUIZ */}
       {showQuiz && (
         <QuizModal
           partitionId={quizPartitionId}
           onClose={() => setShowQuiz(false)}
         />
       )}
+
     </div>
   );
 };
