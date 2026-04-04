@@ -8,30 +8,54 @@ const Navbar = () => {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // ✅ BASE PATH (IMPORTANT)
+  // =========================
+  // BASE PATH
+  // =========================
   const basePath =
     user?.role === "professor"
       ? "/dashboard/professor"
       : "/dashboard/student";
 
-  const isActive = (path) => location.pathname === path;
+  // =========================
+  // ACTIVE CHECK (FIXED)
+  // =========================
+  const isActive = (path) => {
+    // exact match OR nested route match
+    return location.pathname === path || location.pathname.startsWith(path + "/");
+  };
 
+  // =========================
+  // NAV LINKS
+  // =========================
   const links =
     user?.role === "professor"
       ? ["Dashboard", "Courses", "Analytics"]
       : ["Dashboard", "My Courses", "Results"];
 
+  // =========================
+  // INITIALS
+  // =========================
   const getInitials = () => {
     if (!user?.name) return "U";
     return user.name.charAt(0).toUpperCase();
   };
 
-  // ✅ FUNCTION TO GENERATE ROUTES
+  // =========================
+  // ROUTE GENERATOR (FIXED)
+  // =========================
   const getPath = (link) => {
     const slug = link.toLowerCase().replace(" ", "-");
 
-    // special case for dashboard
     if (slug === "dashboard") return basePath;
+
+    // 🔥 FIX: Analytics should NOT require courseId
+    if (slug === "analytics") {
+      return `${basePath}/analytics`;
+    }
+
+    if (slug === "courses" || slug === "my-courses") {
+      return `${basePath}/courses`;
+    }
 
     return `${basePath}/${slug}`;
   };
@@ -39,12 +63,16 @@ const Navbar = () => {
   return (
     <nav className="navbar">
       <div className="nav-container">
+
+        {/* LEFT */}
         <div className="nav-left">
           <img src="/logo.png" alt="AIBACLS" className="nav-logo" />
           <span className="brand">AIBACLS</span>
         </div>
 
-        {/* DESKTOP NAV */}
+        {/* =========================
+            DESKTOP NAV
+        ========================= */}
         <div className="nav-center desktop">
           {links.map((link) => {
             const path = getPath(link);
@@ -60,9 +88,14 @@ const Navbar = () => {
           })}
         </div>
 
-        {/* USER DROPDOWN */}
+        {/* =========================
+            USER DROPDOWN
+        ========================= */}
         <div className="nav-right desktop">
-          <button onClick={() => setMenuOpen(!menuOpen)} className="user-btn">
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="user-btn"
+          >
             <span className="avatar">{getInitials()}</span>
             <span className="user-name">
               {user?.name?.split(" ")[0] || "User"}
@@ -83,9 +116,11 @@ const Navbar = () => {
                   {user?.role || "student"}
                 </span>
               </div>
+
               <Link to="/profile" onClick={() => setMenuOpen(false)}>
                 Profile
               </Link>
+
               <button onClick={logout} className="logout-btn">
                 Logout
               </button>
@@ -93,7 +128,9 @@ const Navbar = () => {
           )}
         </div>
 
-        {/* MOBILE MENU BUTTON */}
+        {/* =========================
+            MOBILE MENU BUTTON
+        ========================= */}
         <button
           className="mobile-menu"
           onClick={() => setMenuOpen(!menuOpen)}
@@ -102,7 +139,9 @@ const Navbar = () => {
         </button>
       </div>
 
-      {/* MOBILE NAV */}
+      {/* =========================
+          MOBILE NAV
+      ========================= */}
       {menuOpen && (
         <div className="mobile-nav">
           {links.map((link) => {
@@ -117,16 +156,20 @@ const Navbar = () => {
               </Link>
             );
           })}
+
           <hr />
+
           <div className="mobile-user">
             <div>{user?.name || "User"}</div>
             <div className="mobile-email">
               {user?.email || "email@example.com"}
             </div>
           </div>
+
           <Link to="/profile" onClick={() => setMenuOpen(false)}>
             Profile
           </Link>
+
           <button onClick={logout} className="mobile-logout-btn">
             Logout
           </button>

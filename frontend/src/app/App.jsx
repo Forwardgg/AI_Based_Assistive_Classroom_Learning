@@ -1,4 +1,3 @@
-// frontend/src/app/App.jsx
 import { useContext } from "react";
 import { Navigate } from "react-router-dom";
 import { AuthContext } from "../features/auth/AuthContext";
@@ -13,9 +12,13 @@ import ProfessorDashboard from "../features/dashboard/pages/ProfessorDashboard";
 import StudentDashboard from "../features/dashboard/pages/StudentDashboard";
 import DashboardLayout from "../components/DashboardLayout";
 
-// ✅ NEW IMPORTS
+// COURSES
 import ProfessorCourses from "../features/courses/pages/ProfessorCourses";
 import CourseDetails from "../features/courses/pages/CourseDetails";
+
+// ANALYTICS
+import ProfessorAnalytics from "../features/analytics/pages/ProfessorAnalytics";
+import SessionAnalytics from "../features/analytics/pages/SessionAnalytics";
 
 function PublicRoute({ children }) {
   const { token, user, loading } = useContext(AuthContext);
@@ -39,7 +42,9 @@ function App() {
       <Router>
         <Routes>
 
-          {/* PUBLIC ROUTES */}
+          {/* =========================
+              PUBLIC ROUTES
+          ========================= */}
           <Route
             path="/"
             element={
@@ -50,7 +55,9 @@ function App() {
           />
           <Route path="/signup" element={<Signup />} />
 
-          {/* PROFESSOR DASHBOARD */}
+          {/* =========================
+              PROFESSOR DASHBOARD
+          ========================= */}
           <Route
             path="/dashboard/professor"
             element={
@@ -62,7 +69,9 @@ function App() {
             }
           />
 
-          {/* STUDENT DASHBOARD */}
+          {/* =========================
+              STUDENT DASHBOARD
+          ========================= */}
           <Route
             path="/dashboard/student"
             element={
@@ -74,7 +83,9 @@ function App() {
             }
           />
 
-          {/* ✅ PROFESSOR COURSES */}
+          {/* =========================
+              PROFESSOR COURSES
+          ========================= */}
           <Route
             path="/dashboard/professor/courses"
             element={
@@ -86,13 +97,57 @@ function App() {
             }
           />
 
-          {/* ✅ COURSE DETAILS */}
+          {/* =========================
+              COURSE DETAILS
+          ========================= */}
           <Route
             path="/dashboard/professor/courses/:courseId"
             element={
               <PrivateRoute allowedRoles={["professor"]}>
                 <DashboardLayout>
                   <CourseDetails />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+
+          {/* =========================
+              ✅ ANALYTICS ROOT (FIXED)
+          ========================= */}
+          <Route
+            path="/dashboard/professor/analytics"
+            element={
+              <PrivateRoute allowedRoles={["professor"]}>
+                <DashboardLayout>
+                  <ProfessorAnalytics />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+
+          {/* =========================
+              ✅ ANALYTICS BY COURSE
+          ========================= */}
+          <Route
+            path="/dashboard/professor/analytics/:courseId"
+            element={
+              <PrivateRoute allowedRoles={["professor"]}>
+                <DashboardLayout>
+                  <ProfessorAnalytics />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+
+          {/* =========================
+              ✅ SESSION ANALYTICS
+          ========================= */}
+          <Route
+            path="/dashboard/professor/analytics/session/:sessionId"
+            element={
+              <PrivateRoute allowedRoles={["professor"]}>
+                <DashboardLayout>
+                  <SessionAnalytics />
                 </DashboardLayout>
               </PrivateRoute>
             }

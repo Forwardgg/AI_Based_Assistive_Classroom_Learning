@@ -46,6 +46,7 @@ def create_app():
     from .models.quiz import Quiz
     from .models.question import Question
     from .models.lecture_notes import LectureNotes
+    from .models.student_answer import StudentAnswer
 
     # =========================
     # TEST DB CONNECTION
@@ -66,6 +67,7 @@ def create_app():
     from .routes.session_routes import session_bp
     from .routes.transcript_routes import transcript_bp
     from .routes.quiz_routes import quiz_bp
+    from .routes.analytics_routes import analytics_bp
 
     app.register_blueprint(user_bp, url_prefix="/api/users")
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
@@ -73,5 +75,6 @@ def create_app():
     app.register_blueprint(session_bp, url_prefix="/api/sessions")
     app.register_blueprint(transcript_bp, url_prefix="/api/transcripts")
     app.register_blueprint(quiz_bp, url_prefix="/api/quiz")
+    app.register_blueprint(analytics_bp, url_prefix="/api/analytics")
 
     return app

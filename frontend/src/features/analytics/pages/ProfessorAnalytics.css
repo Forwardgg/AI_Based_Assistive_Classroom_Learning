@@ -1,0 +1,52 @@
+.analytics-container {
+  padding: 20px;
+}
+
+.course-selector {
+  margin-bottom: 20px;
+}
+
+.course-selector select {
+  padding: 6px;
+  margin-left: 10px;
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.session-card {
+  background: #c9c9f4;
+  padding: 15px;
+  border-radius: 10px;
+}
+
+.session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status {
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: capitalize;
+}
+
+.status.active {
+  background: green;
+}
+
+.status.completed {
+  background: blue;
+}
+
+.status.stopped {
+  background: red;
+}
+
+.btn-analytics {
+  margin-top: 10px;
+}
