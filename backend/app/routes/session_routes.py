@@ -149,6 +149,25 @@ def start_session(session_id):
     if not session or session.status != "scheduled":
         return jsonify({"message": "Cannot start session"}), 400
 
+    # 🔥 BLOCK multiple active sessions per professor
+    existing = (
+        Session.query
+        .join(Course, Session.course_id == Course.id)
+        .filter(
+            Course.professor_id == session.course.professor_id,
+            Session.status.in_(["active", "paused"])
+        )
+        .first()
+    )
+
+    if existing:
+        return jsonify({
+            "message": "Another session is already running. Stop it first."
+        }), 400
+
+    # =========================
+    # START SESSION
+    # =========================
     session.status = "active"
     db.session.commit()
 
@@ -300,8 +319,12 @@ def run_session_timer(app, session_id):
 
             emit_session_state(session_id, room)
 
+            # 🔥 FIX: pause tracking
+            pause_start = None
+
             while True:
                 now = int(time.time())
+
                 if end_time - now <= 0:
                     break
 
@@ -309,12 +332,34 @@ def run_session_timer(app, session_id):
                 if not session or session.status not in ["active", "paused"]:
                     return
 
+                # =========================
+                # 🔥 FIXED PAUSE LOGIC
+                # =========================
                 if session_controls.get(session_id, {}).get("paused"):
+
+                    if pause_start is None:
+                        pause_start = int(time.time())
+
                     socketio.sleep(1)
                     continue
 
+                # 🔥 HANDLE RESUME
+                if pause_start is not None:
+                    pause_duration = int(time.time()) - pause_start
+                    end_time += pause_duration
+                    pause_start = None
+
+                    # 🔥 update DB + frontend
+                    session.partition_end_time = end_time
+                    db.session.commit()
+
+                    emit_session_state(session_id, room)
+
                 socketio.sleep(1)
 
+            # =========================
+            # PARTITION FINISHED
+            # =========================
             socketio.emit(
                 "partition_finished",
                 {
@@ -335,9 +380,13 @@ def run_session_timer(app, session_id):
 
             emit_session_state(session_id, room)
 
+            # Wait for professor resume
             while session_controls.get(session_id, {}).get("paused"):
                 socketio.sleep(1)
 
+        # =========================
+        # SESSION COMPLETED
+        # =========================
         session.status = "completed"
         session.current_partition_index = None
         session.partition_start_time = None

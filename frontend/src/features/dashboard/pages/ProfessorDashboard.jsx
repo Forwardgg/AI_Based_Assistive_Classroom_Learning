@@ -206,23 +206,31 @@ const ProfessorDashboard = () => {
   // CREATE + START
   // =========================
   const handleCreateAndStart = async (sessionData) => {
-    try {
-      const res = await api.post("/sessions", sessionData);
-      const sessionId = res.data.session.id;
+  try {
+    const res = await api.post("/sessions", sessionData);
+    const sessionId = res.data.session.id;
 
-      setActiveSessionId(sessionId);
-      setActiveCourse(sessionData.course_id);
+    setActiveSessionId(sessionId);
+    setActiveCourse(sessionData.course_id);
 
-      socket.emit("join_session", { session_id: sessionId });
+    socket.emit("join_session", { session_id: sessionId });
 
-      await api.post(`/sessions/${sessionId}/start`);
+    await api.post(`/sessions/${sessionId}/start`);
 
-      setShowModal(false);
+    setShowModal(false);
 
-    } catch (err) {
-      console.error("Failed to start session", err);
+  } catch (err) {
+
+    // 🔥 HANDLE BACKEND BLOCK MESSAGE
+    if (err.response?.data?.message) {
+      alert(err.response.data.message);
+    } else {
+      alert("Failed to start session");
     }
-  };
+
+    console.error("Failed to start session", err);
+  }
+};
 
   // =========================
   // QUIZ ACTIONS

@@ -12,7 +12,6 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
 
-  // 🔥 FIX: separate course + session
   const [activeCourse, setActiveCourse] = useState(null);
   const [activeSessionId, setActiveSessionId] = useState(null);
 
@@ -42,10 +41,6 @@ const StudentDashboard = () => {
     }
   };
 
-  useEffect(() => {
-    fetchCourses();
-  }, []);
-
   // =========================
   // SYNC SESSION
   // =========================
@@ -61,6 +56,44 @@ const StudentDashboard = () => {
       console.error("Sync failed");
     }
   };
+
+  // =========================
+  // 🔥 RESTORE SESSION (FIXED)
+  // =========================
+  const restoreSession = async () => {
+    try {
+      const sessionId = localStorage.getItem("activeSessionId");
+      const courseId = localStorage.getItem("activeCourseId");
+
+      if (!sessionId || !courseId) return;
+
+      const res = await api.get(`/sessions/${sessionId}`);
+
+      if (!res.data || ["completed", "stopped"].includes(res.data.status)) {
+        localStorage.removeItem("activeSessionId");
+        localStorage.removeItem("activeCourseId");
+        return;
+      }
+
+      setActiveSessionId(parseInt(sessionId));
+      setActiveCourse(parseInt(courseId));
+
+      socket.emit("join_session", { session_id: parseInt(sessionId) });
+
+      await syncSessionState(sessionId);
+
+    } catch (err) {
+      console.error("Restore failed", err);
+    }
+  };
+
+  // =========================
+  // INIT
+  // =========================
+  useEffect(() => {
+    fetchCourses();
+    restoreSession();
+  }, []);
 
   // =========================
   // CHECK ACTIVE SESSION
@@ -84,9 +117,12 @@ const StudentDashboard = () => {
   const joinSession = async (sessionId, courseId) => {
     socket.emit("join_session", { session_id: sessionId });
 
-    // 🔥 FIX
     setActiveSessionId(sessionId);
     setActiveCourse(courseId);
+
+    // 🔥 store for refresh restore
+    localStorage.setItem("activeSessionId", sessionId);
+    localStorage.setItem("activeCourseId", courseId);
 
     await syncSessionState(sessionId);
 
@@ -158,6 +194,10 @@ const StudentDashboard = () => {
     setActiveSessionId(null);
     setActiveCourse(null);
     setShowQuiz(false);
+
+    // 🔥 clear stored session
+    localStorage.removeItem("activeSessionId");
+    localStorage.removeItem("activeCourseId");
   };
 
   // =========================
@@ -234,7 +274,6 @@ const StudentDashboard = () => {
             <h3 className="course-title">{course.course_name}</h3>
             <p className="course-meta">{course.semester} {course.year}</p>
 
-            {/* 🔥 FIX: course-specific rendering */}
             {activeCourse === course.id ? (
               <div className="session-info">
                 <p>Status: {sessionStatus}</p>
