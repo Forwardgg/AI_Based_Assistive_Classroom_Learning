@@ -49,7 +49,7 @@ const ProfessorDashboard = () => {
   };
 
   // =========================
-  // 🔥 RESTORE SESSION AFTER REFRESH
+  // RESTORE SESSION
   // =========================
   const restoreSession = async () => {
     try {
@@ -107,6 +107,7 @@ const ProfessorDashboard = () => {
 
       setPartitionEndTime(correctedEnd);
 
+      // START recording only when active
       if (data.status === "active" && data.current_partition_index) {
         startRecording(data.session_id);
       }
@@ -115,7 +116,13 @@ const ProfessorDashboard = () => {
     const handlePartitionFinished = (data) => {
       if (data.session_id !== activeSessionId) return;
 
+      // 🔥 HARD STOP recorder (fix ghost recording)
       stopRecording(true);
+
+      // 🔥 DOUBLE STOP to kill restart loop
+      setTimeout(() => {
+        stopRecording(true);
+      }, 500);
 
       setLastPartitionId(data.partition_id);
       setShowQuizPrompt(true);
@@ -155,10 +162,10 @@ const ProfessorDashboard = () => {
     const handleQuizReady = (data) => {
       if (data.session_id !== activeSessionId) return;
 
-      if (data.partition_id === lastPartitionId) {
-        setLoadingQuiz(false);
-        setQuizGenerated(true);
-      }
+      // 🔥 FIX: no race condition anymore
+      setLoadingQuiz(false);
+      setQuizGenerated(true);
+      setLastPartitionId(data.partition_id);
     };
 
     socket.on("session_state", handleSessionState);
@@ -206,31 +213,29 @@ const ProfessorDashboard = () => {
   // CREATE + START
   // =========================
   const handleCreateAndStart = async (sessionData) => {
-  try {
-    const res = await api.post("/sessions", sessionData);
-    const sessionId = res.data.session.id;
+    try {
+      const res = await api.post("/sessions", sessionData);
+      const sessionId = res.data.session.id;
 
-    setActiveSessionId(sessionId);
-    setActiveCourse(sessionData.course_id);
+      setActiveSessionId(sessionId);
+      setActiveCourse(sessionData.course_id);
 
-    socket.emit("join_session", { session_id: sessionId });
+      socket.emit("join_session", { session_id: sessionId });
 
-    await api.post(`/sessions/${sessionId}/start`);
+      await api.post(`/sessions/${sessionId}/start`);
 
-    setShowModal(false);
+      setShowModal(false);
 
-  } catch (err) {
+    } catch (err) {
+      if (err.response?.data?.message) {
+        alert(err.response.data.message);
+      } else {
+        alert("Failed to start session");
+      }
 
-    // 🔥 HANDLE BACKEND BLOCK MESSAGE
-    if (err.response?.data?.message) {
-      alert(err.response.data.message);
-    } else {
-      alert("Failed to start session");
+      console.error("Failed to start session", err);
     }
-
-    console.error("Failed to start session", err);
-  }
-};
+  };
 
   // =========================
   // QUIZ ACTIONS

@@ -48,10 +48,13 @@ def generate_quiz_for_partition(partition_id, session_id):
     if existing:
         print("[QUIZ] Already exists, skipping generation")
 
-        # still notify students
+        # 🔥 FIX: include session_id
         socketio.emit(
             "quiz_ready",
-            {"partition_id": partition_id},
+            {
+                "session_id": session_id,
+                "partition_id": partition_id
+            },
             room=f"session_{session_id}"
         )
         return
@@ -169,6 +172,7 @@ Text:
     socketio.emit(
         "quiz_ready",
         {
+            "session_id": session_id,   # 🔥 FIX ADDED
             "partition_id": partition_id
         },
         room=f"session_{session_id}"

@@ -116,10 +116,8 @@ def upload_audio():
     if not session:
         return jsonify({"error": "session not found"}), 404
 
-    # ✅ ONLY allow when partition is active
-    # This still allows final chunk (since partition exists briefly after stop)
-    if not session.current_partition_index:
-        return jsonify({"error": "no active partition"}), 400
+    if session.status != "active" or not session.current_partition_index:
+        return jsonify({"error": "session not active"}), 400
 
     print("CURRENT PARTITION INDEX:", session.current_partition_index)
 
