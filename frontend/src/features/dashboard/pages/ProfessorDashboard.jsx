@@ -13,7 +13,9 @@ const ProfessorDashboard = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [activeSession, setActiveSession] = useState(null);
+  const [activeCourse, setActiveCourse] = useState(null);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+
   const [sessionStatus, setSessionStatus] = useState(null);
   const [currentPartition, setCurrentPartition] = useState(null);
 
@@ -46,8 +48,43 @@ const ProfessorDashboard = () => {
     }
   };
 
+  // =========================
+  // 🔥 RESTORE SESSION AFTER REFRESH
+  // =========================
+  const restoreSession = async () => {
+    try {
+      const res = await getCourses();
+
+      for (const course of res.data) {
+        try {
+          const active = await api.get(`/sessions/course/${course.id}/active`);
+
+          if (active.data.exists) {
+            const sessionId = active.data.session_id;
+
+            setActiveSessionId(sessionId);
+            setActiveCourse(course.id);
+
+            socket.emit("join_session", { session_id: sessionId });
+
+            const sessionData = await api.get(`/sessions/${sessionId}`);
+
+            setSessionStatus(sessionData.data.status);
+            setCurrentPartition(sessionData.data.current_partition_index);
+            setPartitionEndTime(sessionData.data.end_time);
+
+            return;
+          }
+        } catch {}
+      }
+    } catch (err) {
+      console.error("Restore failed", err);
+    }
+  };
+
   useEffect(() => {
     fetchCourses();
+    restoreSession();
   }, []);
 
   // =========================
@@ -56,6 +93,8 @@ const ProfessorDashboard = () => {
   useEffect(() => {
 
     const handleSessionState = (data) => {
+      if (data.session_id !== activeSessionId) return;
+
       setSessionStatus(data.status);
       setCurrentPartition(data.current_partition_index);
 
@@ -74,6 +113,8 @@ const ProfessorDashboard = () => {
     };
 
     const handlePartitionFinished = (data) => {
+      if (data.session_id !== activeSessionId) return;
+
       stopRecording(true);
 
       setLastPartitionId(data.partition_id);
@@ -83,29 +124,37 @@ const ProfessorDashboard = () => {
       setLoadingQuiz(false);
     };
 
-    const handleCompleted = () => {
+    const handleCompleted = (data) => {
+      if (data.session_id !== activeSessionId) return;
+
       stopRecording(true);
 
       setSessionStatus("completed");
       setCurrentPartition(null);
       setPartitionEndTime(null);
       setTimeLeft(null);
-      setActiveSession(null);
+      setActiveSessionId(null);
+      setActiveCourse(null);
 
       fetchCourses();
     };
 
-    const handleStopped = () => {
+    const handleStopped = (data) => {
+      if (data.session_id !== activeSessionId) return;
+
       stopRecording(true);
 
       setSessionStatus("stopped");
       setCurrentPartition(null);
       setPartitionEndTime(null);
       setTimeLeft(null);
-      setActiveSession(null);
+      setActiveSessionId(null);
+      setActiveCourse(null);
     };
 
     const handleQuizReady = (data) => {
+      if (data.session_id !== activeSessionId) return;
+
       if (data.partition_id === lastPartitionId) {
         setLoadingQuiz(false);
         setQuizGenerated(true);
@@ -126,7 +175,7 @@ const ProfessorDashboard = () => {
       socket.off("quiz_ready", handleQuizReady);
     };
 
-  }, [lastPartitionId]);
+  }, [activeSessionId, lastPartitionId]);
 
   // =========================
   // TIMER
@@ -161,7 +210,8 @@ const ProfessorDashboard = () => {
       const res = await api.post("/sessions", sessionData);
       const sessionId = res.data.session.id;
 
-      setActiveSession(sessionId);
+      setActiveSessionId(sessionId);
+      setActiveCourse(sessionData.course_id);
 
       socket.emit("join_session", { session_id: sessionId });
 
@@ -178,12 +228,12 @@ const ProfessorDashboard = () => {
   // QUIZ ACTIONS
   // =========================
   const handleGenerateQuiz = async () => {
-    if (!activeSession || !lastPartitionId) return;
+    if (!activeSessionId || !lastPartitionId) return;
 
     try {
       setLoadingQuiz(true);
 
-      await api.post(`/sessions/${activeSession}/generate-quiz`, {
+      await api.post(`/sessions/${activeSessionId}/generate-quiz`, {
         partition_id: lastPartitionId
       });
 
@@ -194,27 +244,28 @@ const ProfessorDashboard = () => {
   };
 
   const handleResume = async () => {
-    if (!activeSession) return;
-    await api.post(`/sessions/${activeSession}/resume`);
+    if (!activeSessionId) return;
+    await api.post(`/sessions/${activeSessionId}/resume`);
     setShowQuizPrompt(false);
   };
 
   const handlePause = async () => {
-    if (!activeSession) return;
-    await api.post(`/sessions/${activeSession}/pause`);
+    if (!activeSessionId) return;
+    await api.post(`/sessions/${activeSessionId}/pause`);
   };
 
   const handleStop = async () => {
-    if (!activeSession) return;
+    if (!activeSessionId) return;
 
-    await api.post(`/sessions/${activeSession}/stop`);
+    await api.post(`/sessions/${activeSessionId}/stop`);
     stopRecording(true);
 
     setSessionStatus("stopped");
     setCurrentPartition(null);
     setPartitionEndTime(null);
     setTimeLeft(null);
-    setActiveSession(null);
+    setActiveSessionId(null);
+    setActiveCourse(null);
   };
 
   return (
@@ -231,7 +282,7 @@ const ProfessorDashboard = () => {
           <p className="course-meta">{course.semester} {course.year}</p>
           <p className="course-meta">Code: {course.class_code}</p>
 
-          {activeSession && sessionStatus !== "completed" ? (
+          {activeCourse === course.id && sessionStatus !== "completed" ? (
             <>
               <div className="session-info">
                 <p>Status: {sessionStatus}</p>
@@ -245,9 +296,17 @@ const ProfessorDashboard = () => {
                 </button>
               )}
 
-              <button className="btn btn-stop" onClick={handleStop}>
-                Stop
-              </button>
+              {sessionStatus === "paused" && (
+                <button className="btn btn-resume" onClick={handleResume}>
+                  Resume
+                </button>
+              )}
+
+              {(sessionStatus === "active" || sessionStatus === "paused") && (
+                <button className="btn btn-stop" onClick={handleStop}>
+                  Stop
+                </button>
+              )}
             </>
           ) : (
             <button
@@ -278,22 +337,22 @@ const ProfessorDashboard = () => {
           )}
 
           {quizGenerated && (
-  <>
-    <p>✅ Quiz Generated</p>
+            <>
+              <p>✅ Quiz Generated</p>
 
-    <button
-      className="btn btn-quiz"
-      onClick={() => setShowQuizPrompt(false)}
-    >
-      View Quiz
-    </button>
+              <button
+                className="btn btn-quiz"
+                onClick={() => setShowQuizPrompt(false)}
+              >
+                View Quiz
+              </button>
 
-    <ProfessorQuizView
-      partitionId={lastPartitionId}
-      onClose={() => setQuizGenerated(false)}
-    />
-  </>
-)}
+              <ProfessorQuizView
+                partitionId={lastPartitionId}
+                onClose={() => setQuizGenerated(false)}
+              />
+            </>
+          )}
 
           <button className="btn btn-resume" onClick={handleResume}>
             Resume Lecture

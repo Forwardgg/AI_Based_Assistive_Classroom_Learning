@@ -12,7 +12,10 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
 
-  const [activeSession, setActiveSession] = useState(null);
+  // 🔥 FIX: separate course + session
+  const [activeCourse, setActiveCourse] = useState(null);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+
   const [sessionStatus, setSessionStatus] = useState(null);
   const [currentPartition, setCurrentPartition] = useState(null);
 
@@ -78,9 +81,12 @@ const StudentDashboard = () => {
   // =========================
   // JOIN SESSION
   // =========================
-  const joinSession = async (sessionId) => {
+  const joinSession = async (sessionId, courseId) => {
     socket.emit("join_session", { session_id: sessionId });
-    setActiveSession(sessionId);
+
+    // 🔥 FIX
+    setActiveSessionId(sessionId);
+    setActiveCourse(courseId);
 
     await syncSessionState(sessionId);
 
@@ -93,7 +99,10 @@ const StudentDashboard = () => {
   // SOCKET LISTENERS
   // =========================
   useEffect(() => {
+
     const handleSessionState = (data) => {
+      if (data.session_id !== activeSessionId) return;
+
       setSessionStatus(data.status);
       setCurrentPartition(data.current_partition_index);
 
@@ -107,15 +116,19 @@ const StudentDashboard = () => {
       setPartitionEndTime(correctedEnd);
     };
 
-    const handleCompleted = () => {
+    const handleCompleted = (data) => {
+      if (data.session_id !== activeSessionId) return;
       resetSession();
     };
 
-    const handleStopped = () => {
+    const handleStopped = (data) => {
+      if (data.session_id !== activeSessionId) return;
       resetSession();
     };
 
     const handleQuiz = (data) => {
+      if (data.session_id !== activeSessionId) return;
+
       setQuizPartitionId(data.partition_id);
       setShowQuiz(true);
     };
@@ -131,7 +144,8 @@ const StudentDashboard = () => {
       socket.off("session_stopped", handleStopped);
       socket.off("quiz_ready", handleQuiz);
     };
-  }, []);
+
+  }, [activeSessionId]);
 
   // =========================
   // RESET SESSION
@@ -141,7 +155,8 @@ const StudentDashboard = () => {
     setCurrentPartition(null);
     setTimeLeft(null);
     setPartitionEndTime(null);
-    setActiveSession(null);
+    setActiveSessionId(null);
+    setActiveCourse(null);
     setShowQuiz(false);
   };
 
@@ -219,7 +234,8 @@ const StudentDashboard = () => {
             <h3 className="course-title">{course.course_name}</h3>
             <p className="course-meta">{course.semester} {course.year}</p>
 
-            {activeSession ? (
+            {/* 🔥 FIX: course-specific rendering */}
+            {activeCourse === course.id ? (
               <div className="session-info">
                 <p>Status: {sessionStatus}</p>
 
@@ -242,12 +258,13 @@ const StudentDashboard = () => {
                     return;
                   }
 
-                  joinSession(sessionId);
+                  joinSession(sessionId, course.id);
                 }}
               >
                 Join Live Session
               </button>
             )}
+
           </div>
         ))}
       </div>
