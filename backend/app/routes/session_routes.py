@@ -61,12 +61,21 @@ def get_active_session(course_id):
     session = (
         Session.query
         .filter_by(course_id=course_id)
-        .filter(Session.status == "active")   # 🔥 ONLY ACTIVE
+        .filter(Session.status.in_(["active", "paused"]))
         .order_by(Session.id.desc())
         .first()
     )
 
     if not session:
+        return jsonify({"exists": False}), 200
+
+    # 🔥 FIX: kill broken paused sessions (after server restart)
+    if session.status == "paused" and session.partition_end_time is None:
+        session.status = "stopped"
+        session.current_partition_index = None
+        session.partition_start_time = None
+        session.partition_end_time = None
+        db.session.commit()
         return jsonify({"exists": False}), 200
 
     return jsonify({
