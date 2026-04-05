@@ -107,22 +107,25 @@ const ProfessorDashboard = () => {
 
       setPartitionEndTime(correctedEnd);
 
-      // START recording only when active
-      if (data.status === "active" && data.current_partition_index) {
+      // ✅ FIX 1: safer start condition
+      if (
+        data.status === "active" &&
+        data.current_partition_index &&
+        data.session_id === activeSessionId
+      ) {
         startRecording(data.session_id);
+      }
+
+      // ✅ FIX 2: stop if no partition (prevents ghost restart)
+      if (!data.current_partition_index) {
+        stopRecording(true);
       }
     };
 
     const handlePartitionFinished = (data) => {
       if (data.session_id !== activeSessionId) return;
 
-      // 🔥 HARD STOP recorder (fix ghost recording)
       stopRecording(true);
-
-      // 🔥 DOUBLE STOP to kill restart loop
-      setTimeout(() => {
-        stopRecording(true);
-      }, 500);
 
       setLastPartitionId(data.partition_id);
       setShowQuizPrompt(true);
@@ -162,7 +165,6 @@ const ProfessorDashboard = () => {
     const handleQuizReady = (data) => {
       if (data.session_id !== activeSessionId) return;
 
-      // 🔥 FIX: no race condition anymore
       setLoadingQuiz(false);
       setQuizGenerated(true);
       setLastPartitionId(data.partition_id);
