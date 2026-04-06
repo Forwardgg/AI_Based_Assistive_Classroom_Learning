@@ -1,0 +1,36 @@
+.student-courses-container {
+  padding: 20px;
+}
+
+.join-section {
+  margin-bottom: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 300px;
+}
+
+.join-section input {
+  padding: 8px;
+}
+
+.join-section button {
+  padding: 8px;
+  cursor: pointer;
+}
+
+.courses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.course-card {
+  padding: 16px;
+  border: 1px solid #333;
+  border-radius: 8px;
+}
+
+.course-card button {
+  margin-top: 10px;
+}

@@ -14,11 +14,13 @@ import DashboardLayout from "../components/DashboardLayout";
 
 // COURSES
 import ProfessorCourses from "../features/courses/pages/ProfessorCourses";
+import StudentCourses from "../features/courses/pages/StudentCourses"; // ✅ NEW
 import CourseDetails from "../features/courses/pages/CourseDetails";
 
 // ANALYTICS
 import ProfessorAnalytics from "../features/analytics/pages/ProfessorAnalytics";
 import SessionAnalytics from "../features/analytics/pages/SessionAnalytics";
+import StudentResults from "../features/analytics/pages/StudentResults";
 
 function PublicRoute({ children }) {
   const { token, user, loading } = useContext(AuthContext);
@@ -98,7 +100,21 @@ function App() {
           />
 
           {/* =========================
-              COURSE DETAILS
+              STUDENT COURSES (NEW)
+          ========================= */}
+          <Route
+            path="/dashboard/student/courses"
+            element={
+              <PrivateRoute allowedRoles={["student"]}>
+                <DashboardLayout>
+                  <StudentCourses />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+
+          {/* =========================
+              COURSE DETAILS (PROFESSOR)
           ========================= */}
           <Route
             path="/dashboard/professor/courses/:courseId"
@@ -112,7 +128,21 @@ function App() {
           />
 
           {/* =========================
-              ✅ ANALYTICS ROOT (FIXED)
+              COURSE DETAILS (STUDENT) ✅ NEW
+          ========================= */}
+          <Route
+            path="/dashboard/student/courses/:courseId"
+            element={
+              <PrivateRoute allowedRoles={["student"]}>
+                <DashboardLayout>
+                  <CourseDetails />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+
+          {/* =========================
+              ANALYTICS ROOT
           ========================= */}
           <Route
             path="/dashboard/professor/analytics"
@@ -126,7 +156,7 @@ function App() {
           />
 
           {/* =========================
-              ✅ ANALYTICS BY COURSE
+              ANALYTICS BY COURSE
           ========================= */}
           <Route
             path="/dashboard/professor/analytics/:courseId"
@@ -140,7 +170,7 @@ function App() {
           />
 
           {/* =========================
-              ✅ SESSION ANALYTICS
+              SESSION ANALYTICS
           ========================= */}
           <Route
             path="/dashboard/professor/analytics/session/:sessionId"
@@ -152,6 +182,16 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route
+  path="/dashboard/student/results"
+  element={
+    <PrivateRoute allowedRoles={['student']}>
+      <DashboardLayout>
+        <StudentResults />
+      </DashboardLayout>
+    </PrivateRoute>
+  }
+/>
 
         </Routes>
       </Router>

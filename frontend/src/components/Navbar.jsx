@@ -17,11 +17,13 @@ const Navbar = () => {
       : "/dashboard/student";
 
   // =========================
-  // ACTIVE CHECK (FIXED)
+  // ACTIVE CHECK
   // =========================
   const isActive = (path) => {
-    // exact match OR nested route match
-    return location.pathname === path || location.pathname.startsWith(path + "/");
+    return (
+      location.pathname === path ||
+      location.pathname.startsWith(path + "/")
+    );
   };
 
   // =========================
@@ -41,20 +43,27 @@ const Navbar = () => {
   };
 
   // =========================
-  // ROUTE GENERATOR (FIXED)
+  // ROUTE GENERATOR
   // =========================
   const getPath = (link) => {
     const slug = link.toLowerCase().replace(" ", "-");
 
+    // Dashboard
     if (slug === "dashboard") return basePath;
 
-    // 🔥 FIX: Analytics should NOT require courseId
+    // Professor Analytics
     if (slug === "analytics") {
       return `${basePath}/analytics`;
     }
 
+    // Courses (Professor + Student)
     if (slug === "courses" || slug === "my-courses") {
       return `${basePath}/courses`;
+    }
+
+    // Results (Student only)
+    if (slug === "results") {
+      return `${basePath}/results`;
     }
 
     return `${basePath}/${slug}`;

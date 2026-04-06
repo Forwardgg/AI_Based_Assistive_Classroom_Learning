@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import { useParams } from "react-router-dom";
 import { getCourses } from "../courseAPI";
 import SessionModal from "../../lectures/pages/SessionModal";
 import ProfessorQuizView from "../../quiz/ProfessorQuizView";
 import api from "../../../services/api";
+import { AuthContext } from "../../auth/AuthContext"; // ✅ NEW
 import "./CourseDetails.css";
 
 const CourseDetails = () => {
   const { courseId } = useParams();
+  const { user } = useContext(AuthContext); // ✅ NEW
+
+  const isStudent = user?.role === "student"; // ✅ NEW
 
   const [course, setCourse] = useState(null);
   const [sessions, setSessions] = useState([]);
@@ -34,7 +38,6 @@ const CourseDetails = () => {
 
       setCourse(found);
 
-      // 🔥 backend endpoint (you'll build later)
       const sessionRes = await api.get(`/courses/${courseId}/sessions`);
       setSessions(sessionRes.data);
 
@@ -85,21 +88,27 @@ const CourseDetails = () => {
 
         <div className="course-code-box">
           <span>Class Code: {course.class_code}</span>
-          <button className="btn btn-copy" onClick={handleCopy}>
-            Copy
-          </button>
+
+          {/* 👇 Only professor should copy */}
+          {!isStudent && (
+            <button className="btn btn-copy" onClick={handleCopy}>
+              Copy
+            </button>
+          )}
         </div>
       </div>
 
       {/* ACTION */}
-      <div className="course-actions">
-        <button
-          className="btn btn-start"
-          onClick={() => setShowModal(true)}
-        >
-          Start New Session
-        </button>
-      </div>
+      {!isStudent && (
+        <div className="course-actions">
+          <button
+            className="btn btn-start"
+            onClick={() => setShowModal(true)}
+          >
+            Start New Session
+          </button>
+        </div>
+      )}
 
       {/* =========================
           SESSION HISTORY
@@ -132,9 +141,12 @@ const CourseDetails = () => {
                   View Notes
                 </button>
 
-                <button className="btn btn-report">
-                  Generate Report
-                </button>
+                {/* 👇 Only professor */}
+                {!isStudent && (
+                  <button className="btn btn-report">
+                    Generate Report
+                  </button>
+                )}
 
               </div>
 
@@ -195,9 +207,9 @@ const CourseDetails = () => {
       )}
 
       {/* =========================
-          SESSION MODAL
+          SESSION MODAL (PROF ONLY)
       ========================= */}
-      {showModal && (
+      {!isStudent && showModal && (
         <SessionModal
           courseId={course.id}
           onClose={() => setShowModal(false)}
