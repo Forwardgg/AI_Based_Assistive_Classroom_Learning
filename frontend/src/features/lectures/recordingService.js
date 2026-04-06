@@ -1,3 +1,4 @@
+
 // frontend/src/features/lectures/recordingService.js
 
 let mediaRecorder = null;
@@ -6,7 +7,7 @@ let currentSessionId = null;
 let chunkTimer = null;
 let isRecording = false;
 
-// 🔥 NEW: track cleanup timeout
+// track cleanup timeout
 let cleanupTimeout = null;
 
 
@@ -20,7 +21,7 @@ async function startRecording(sessionId) {
         time: Date.now()
     });
 
-    // 🔥 FIX: cancel any pending cleanup
+    // cancel pending cleanup
     if (cleanupTimeout) {
         clearTimeout(cleanupTimeout);
         cleanupTimeout = null;
@@ -46,8 +47,10 @@ async function startRecording(sessionId) {
 
         mediaRecorder.ondataavailable = async (event) => {
 
-            if (!currentSessionId) {
-                console.warn("[REC DATA DROPPED]");
+            const sessionId = currentSessionId;
+
+            if (!sessionId) {
+                console.warn("[REC DATA DROPPED - NO SESSION]");
                 return;
             }
 
@@ -58,7 +61,10 @@ async function startRecording(sessionId) {
                     time: Date.now()
                 });
 
-                uploadChunk(event.data, currentSessionId);
+                uploadChunk(event.data, sessionId);
+
+            } else {
+                console.warn("[EMPTY AUDIO CHUNK]");
             }
         };
 
@@ -70,7 +76,7 @@ async function startRecording(sessionId) {
         console.log("[REC STARTED]");
 
         // =========================
-        // CHUNK LOOP
+        // CHUNK LOOP (UNCHANGED)
         // =========================
         chunkTimer = setInterval(() => {
 
@@ -158,7 +164,7 @@ async function uploadChunk(blob, sessionId) {
 
 
 // =========================
-// STOP RECORDING (FIXED)
+// STOP RECORDING (FIXED CLEANUP)
 // =========================
 function stopRecording(force = false) {
 
@@ -202,11 +208,15 @@ function stopRecording(force = false) {
 
     mediaRecorder = null;
 
-    // 🔥 FIX: controlled cleanup
+    // 🔥 FIXED CLEANUP (no race condition)
     cleanupTimeout = setTimeout(() => {
-        currentSessionId = null;
+        if (!isRecording) {
+            currentSessionId = null;
+            console.log("[REC SESSION CLEARED]");
+        } else {
+            console.log("[CLEANUP SKIPPED - STILL RECORDING]");
+        }
         cleanupTimeout = null;
-        console.log("[REC SESSION CLEARED]");
     }, 500);
 
     console.log("[REC FULLY STOPPED]");
