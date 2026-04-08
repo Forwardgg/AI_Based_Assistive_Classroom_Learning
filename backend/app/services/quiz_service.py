@@ -172,7 +172,7 @@ Text:
     socketio.emit(
         "quiz_ready",
         {
-            "session_id": session_id,   # 🔥 FIX ADDED
+            "session_id": session_id,
             "partition_id": partition_id
         },
         room=f"session_{session_id}"

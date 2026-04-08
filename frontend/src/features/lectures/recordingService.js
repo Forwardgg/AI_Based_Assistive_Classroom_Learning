@@ -1,19 +1,16 @@
-
 // frontend/src/features/lectures/recordingService.js
 
-let mediaRecorder = null;
-let stream = null;
-let currentSessionId = null;
-let chunkTimer = null;
-let isRecording = false;
+let mediaRecorder = null; // MediaRecorder instance for audio recording
+let stream = null; // Audio stream from microphone
+let currentSessionId = null; // Active session ID for uploads
+let chunkTimer = null; // Interval timer for chunking audio
+let isRecording = false; // Recording state flag
 
-// track cleanup timeout
+// Timeout reference for delayed cleanup
 let cleanupTimeout = null;
 
 
-// =========================
-// START RECORDING
-// =========================
+// Starts recording audio and sends chunks periodically
 async function startRecording(sessionId) {
 
     console.log("[REC START REQUEST]", {
@@ -21,13 +18,14 @@ async function startRecording(sessionId) {
         time: Date.now()
     });
 
-    // cancel pending cleanup
+    // Cancel any pending cleanup from previous session
     if (cleanupTimeout) {
         clearTimeout(cleanupTimeout);
         cleanupTimeout = null;
         console.log("[CANCELLED OLD CLEANUP]");
     }
 
+    // Prevent duplicate recording sessions
     if (isRecording) {
         console.log("[REC SKIP] Already recording");
         return;
@@ -37,23 +35,28 @@ async function startRecording(sessionId) {
     isRecording = true;
 
     try {
+        // Request microphone access
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
         console.log("[REC STREAM ACQUIRED]");
 
+        // Initialize MediaRecorder with WebM format
         mediaRecorder = new MediaRecorder(stream, {
             mimeType: "audio/webm"
         });
 
+        // Triggered when audio data is available
         mediaRecorder.ondataavailable = async (event) => {
 
             const sessionId = currentSessionId;
 
+            // Drop chunk if session is not valid
             if (!sessionId) {
                 console.warn("[REC DATA DROPPED - NO SESSION]");
                 return;
             }
 
+            // Upload chunk if valid
             if (event.data && event.data.size > 0) {
 
                 console.log("[REC DATA AVAILABLE]", {
@@ -68,16 +71,16 @@ async function startRecording(sessionId) {
             }
         };
 
+        // Triggered when recorder stops
         mediaRecorder.onstop = () => {
             console.log("[REC STOP EVENT]");
         };
 
+        // Start recording
         mediaRecorder.start();
         console.log("[REC STARTED]");
 
-        // =========================
-        // CHUNK LOOP (UNCHANGED)
-        // =========================
+        // Periodically stop and restart recorder to generate chunks
         chunkTimer = setInterval(() => {
 
             if (!isRecording) return;
@@ -91,7 +94,7 @@ async function startRecording(sessionId) {
                     if (!isRecording) return;
 
                     try {
-                        mediaRecorder.stop();
+                        mediaRecorder.stop(); // Stop to trigger data event
                         console.log("[REC STOP FOR CHUNK]");
                     } catch (err) {
                         console.warn("[REC STOP ERROR]", err);
@@ -102,7 +105,7 @@ async function startRecording(sessionId) {
                         if (!isRecording) return;
 
                         try {
-                            mediaRecorder.start();
+                            mediaRecorder.start(); // Restart recording
                             console.log("[REC RESTARTED]");
                         } catch (err) {
                             console.warn("[REC RESTART ERROR]", err);
@@ -122,9 +125,7 @@ async function startRecording(sessionId) {
 }
 
 
-// =========================
-// UPLOAD CHUNK
-// =========================
+// Uploads recorded audio chunk to backend
 async function uploadChunk(blob, sessionId) {
 
     console.log("[UPLOAD START]", {
@@ -138,6 +139,7 @@ async function uploadChunk(blob, sessionId) {
     formData.append("audio", blob, "chunk.webm");
 
     try {
+        // Send chunk to backend API
         const res = await fetch("http://localhost:5000/api/transcripts/upload", {
             method: "POST",
             body: formData
@@ -149,11 +151,13 @@ async function uploadChunk(blob, sessionId) {
 
             console.warn("[UPLOAD REJECTED]", res.status);
 
+            // Ignore final chunk after session ends
             if (res.status === 400) {
                 console.log("[IGNORE FINAL CHUNK AFTER SESSION END]");
                 return;
             }
 
+            // Stop recording on serious errors
             stopRecording(true);
         }
 
@@ -163,9 +167,7 @@ async function uploadChunk(blob, sessionId) {
 }
 
 
-// =========================
-// STOP RECORDING (FIXED CLEANUP)
-// =========================
+// Stops recording and releases all resources
 function stopRecording(force = false) {
 
     console.log("[REC STOP REQUEST]", {
@@ -176,6 +178,7 @@ function stopRecording(force = false) {
 
     isRecording = false;
 
+    // Clear chunk interval
     if (chunkTimer) {
         clearInterval(chunkTimer);
         chunkTimer = null;
@@ -184,15 +187,30 @@ function stopRecording(force = false) {
 
     if (mediaRecorder) {
         try {
-            if (mediaRecorder.state !== "inactive") {
-                mediaRecorder.stop();
-                console.log("[RECORDER FORCE STOP]");
+            if (mediaRecorder.state === "recording") {
+
+                console.log("[FINAL CHUNK FLUSH]");
+
+                // Force last chunk to be emitted
+                mediaRecorder.requestData();
+
+                // Stop recorder after data is flushed
+                setTimeout(() => {
+                    try {
+                        mediaRecorder.stop();
+                        console.log("[RECORDER FORCE STOP]");
+                    } catch (err) {
+                        console.warn("[RECORDER STOP ERROR]", err);
+                    }
+                }, 200);
+
             }
         } catch (err) {
             console.warn("[RECORDER STOP ERROR]", err);
         }
     }
 
+    // Stop all audio tracks
     if (stream) {
         stream.getTracks().forEach(track => {
             try {
@@ -208,7 +226,7 @@ function stopRecording(force = false) {
 
     mediaRecorder = null;
 
-    // 🔥 FIXED CLEANUP (no race condition)
+    // Delayed cleanup of session ID
     cleanupTimeout = setTimeout(() => {
         if (!isRecording) {
             currentSessionId = null;
@@ -223,7 +241,5 @@ function stopRecording(force = false) {
 }
 
 
-// =========================
-// EXPORTS
-// =========================
+// Export recording functions
 export { startRecording, stopRecording };
