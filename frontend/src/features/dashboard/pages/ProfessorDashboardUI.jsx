@@ -1,3 +1,4 @@
+// frontend/src/features/dashboard/pages/ProfessorDashboardUI.jsx
 import React, { useState } from "react";
 import {
   BookOpen, Users, Clock, Brain, Plus, Mic, FileText, BarChart3,

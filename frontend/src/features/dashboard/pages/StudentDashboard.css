@@ -1,147 +1,394 @@
-/* =========================
-   BASE LAYOUT
-========================= */
-.student-container {
-  max-width: 1000px;
-  margin: auto;
-  padding: 32px 20px;
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #f9fafb;
-  min-height: 100vh;
+:root {
+  --primary: #2563eb;
+  --primary-dark: #1e40af;
+  --bg-main: #f8fafc;
+  --bg-hero: #f0fdfa;
+  --text-dark: #1e293b;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --white: #ffffff;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.student-container h1 {
-  font-size: 26px;
-  font-weight: 700;
-  margin-bottom: 20px;
-  color: #111827;
+/* ========================= */
+/* MAIN LAYOUT */
+/* ========================= */
+
+.dashboard-wrapper {
+  background-color: var(--bg-main);
+  min-height: calc(100vh - 65px);
+  padding: 2rem 1.5rem;
+  color: var(--text-dark);
 }
 
-/* =========================
-   JOIN COURSE CARD
-========================= */
-.join-card {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 24px;
+.dashboard-container {
+  max-width: 1320px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.join-card input {
-  flex: 1;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
-  font-size: 14px;
-  outline: none;
-  transition: 0.2s ease;
-}
+/* ========================= */
+/* HERO SECTION (Live Session) */
+/* ========================= */
 
-.join-card input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
-}
-
-.join-card button {
-  padding: 10px 16px;
-  background: #2563eb;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: 0.2s ease;
-}
-
-.join-card button:hover {
-  background: #1d4ed8;
-}
-
-/* =========================
-   COURSES GRID
-========================= */
-.courses-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* =========================
-   COURSE CARD
-========================= */
-.course-card {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  padding: 16px 18px;
+.hero-banner {
+  background-color: var(--bg-hero);
+  border: 1px solid #ccfbf1;
   border-radius: 12px;
-  transition: 0.2s ease;
+  padding: 1.5rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  gap: 1rem;
 }
 
-.course-card:hover {
-  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-  transform: translateY(-2px);
+.hero-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.course-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: #111827;
+.hero-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
 }
 
-.course-meta {
-  font-size: 13px;
-  color: #6b7280;
+.badge-live {
+  background: #22c55e;
+  color: white;
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  border-radius: 20px;
+  font-weight: 700;
+}
+
+.current-topic {
+  color: var(--text-muted);
   margin-top: 4px;
+  font-size: 0.95rem;
 }
 
-/* =========================
-   SESSION INFO
-========================= */
-.session-info {
-  margin-top: 10px;
-  font-size: 14px;
-  color: #374151;
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
-.session-info p {
-  margin: 3px 0;
-}
-
-/* =========================
-   BUTTON (REUSE STYLE)
-========================= */
-.btn {
-  margin-top: 10px;
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--white);
   padding: 8px 14px;
   border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-  border: none;
-  transition: 0.2s ease;
+  font-weight: 700;
+  border: 1px solid var(--border-color);
 }
 
-/* Join Session */
-.btn-start {
-  background: #2563eb;
+/* ========================= */
+/* JOIN COURSE FORM (The Improved Version) */
+/* ========================= */
+
+form.hero-banner {
+  background-color: var(--white);
+  border: 1px solid var(--border-color);
+  display: flex;
+  gap: 12px;
+  padding: 1rem 1.5rem;
+}
+
+form.hero-banner input {
+  flex: 1; /* Inputs grow to fill space */
+  min-width: 0; /* Prevents flex items from overflowing */
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  outline: none;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  background: #fcfcfc;
+}
+
+form.hero-banner input:focus {
+  border-color: var(--primary);
+  background: var(--white);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.btn-join-hero {
+  background: var(--primary-dark);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: 0.2s;
+}
+
+.btn-join-hero:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+/* ========================= */
+/* COURSE GRID */
+/* ========================= */
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 3rem;
+}
+
+.course-card-v2 {
+  background: var(--white);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  overflow: hidden; /* Ensures content stays inside */
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+
+.course-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+  padding-right: 10px;
+}
+
+.instructor-name {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 4px 0 0 0;
+  text-transform: capitalize;
+}
+
+/* STATUS */
+
+.status-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.status-badge.live {
+  background: #34d399;
   color: white;
 }
 
-.btn-start:hover {
-  background: #1d4ed8;
+.status-badge.inactive {
+  background: #f1f5f9;
+  color: #94a3b8;
 }
 
-/* =========================
-   RESPONSIVE
-========================= */
+/* BUTTONS FIX - This keeps them inside */
+
+.button-group {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 1.5rem;
+  flex-wrap: wrap; /* Allows buttons to wrap to next line if card gets too thin */
+}
+
+.btn-join-v2 {
+  background: var(--primary-dark);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  flex: 1; /* Makes join button grow to fill space */
+  min-width: fit-content;
+}
+
+.btn-action-v2 {
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  color: var(--text-dark);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.8rem; /* Slighting smaller font helps fitting */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0; /* Important for flex-shrink */
+  white-space: nowrap;
+}
+
+.btn-action-v2:hover {
+  background: #eef2f7;
+}
+
+/* ========================= */
+/* BOTTOM GRID */
+/* ========================= */
+
+.bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.info-card {
+  background: var(--white);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+}
+
+/* STATS & PROGRESS */
+
+.stat-row {
+  margin-bottom: 1.25rem;
+}
+
+.stat-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+
+.progress-bg {
+  background: #f1f5f9;
+  height: 8px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  background: var(--primary-dark);
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.5s ease-in-out;
+}
+
+/* LISTS */
+
+.data-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+}
+
+.row-main {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.row-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.score-badge {
+  background: #e2e8f0;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.view-btn {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 10px;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.view-btn:hover {
+  background: #e2e8f0;
+}
+
+.link-text {
+  color: var(--primary-dark);
+  font-weight: 700;
+  font-size: 0.85rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* ========================= */
+/* RESPONSIVE */
+/* ========================= */
+
 @media (max-width: 768px) {
-  .student-container {
-    padding: 20px 14px;
-  }
-
-  .join-card {
+  form.hero-banner {
     flex-direction: column;
+    gap: 10px;
   }
 
-  .join-card button {
+  .btn-join-hero {
     width: 100%;
+  }
+
+  .hero-banner {
+    flex-direction: column;
+    text-align: center;
+    gap: 1.5rem;
+  }
+
+  .course-grid {
+    grid-template-columns: 1fr;
   }
 }

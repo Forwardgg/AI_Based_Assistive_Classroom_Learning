@@ -1,3 +1,4 @@
+// frontend/src/features/dashboard/pages/ProfessorDashboard.jsx
 import { useEffect, useState, useRef } from "react";
 import { getCourses } from "../../courses/courseAPI";
 import socket from "../../../services/socket";

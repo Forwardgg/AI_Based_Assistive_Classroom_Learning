@@ -22,7 +22,7 @@
   margin: 0 auto;
 }
 
-/* --- SESSION CONTROL BAR (The Top Floating Bar) --- */
+/* --- SESSION CONTROL BAR --- */
 .session-control-bar {
   position: sticky;
   top: 1rem;
@@ -40,7 +40,7 @@
 }
 
 .session-control-bar.paused {
-  background: #92400e; /* Amber for pause state */
+  background: #92400e;
 }
 
 .session-bar-info {
@@ -54,7 +54,6 @@
   height: 10px;
   background: var(--danger-red);
   border-radius: 50%;
-  box-shadow: 0 0 0 rgba(239, 68, 68, 0.4);
   animation: pulse-red 1.5s infinite;
 }
 
@@ -68,7 +67,6 @@
   font-family: 'JetBrains Mono', monospace;
   font-weight: 600;
   font-size: 0.9rem;
-  letter-spacing: 0.5px;
 }
 
 .session-bar-actions {
@@ -92,7 +90,6 @@
 .bar-btn.pause { background: rgba(255,255,255,0.15); color: white; }
 .bar-btn.resume { background: var(--success-green); color: white; }
 .bar-btn.stop { background: var(--danger-red); color: white; }
-.bar-btn:hover { opacity: 0.9; transform: translateY(-1px); }
 
 /* --- GREETING & STATS --- */
 .greeting h1 { font-size: 2rem; font-weight: 700; margin: 0; }
@@ -112,25 +109,42 @@
   padding: 1.5rem;
   display: flex;
   justify-content: space-between;
+  align-items: center; /* Vertical alignment fix */
   box-shadow: 0 1px 3px rgba(0,0,0,0.02);
 }
 
-.stat-main-val { font-size: 1.8rem; font-weight: 700; margin: 4px 0; }
-.stat-label-top { font-size: 0.8rem; color: #64748b; font-weight: 500; }
-.stat-trend-val { font-size: 0.75rem; color: var(--success-green); font-weight: 600; }
+.stat-card-white > div:first-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-card-white h2 { 
+  font-size: 1.8rem; 
+  font-weight: 700; 
+  margin: 4px 0; 
+  line-height: 1;
+}
+
+.stat-card-white span { 
+  font-size: 0.85rem; 
+  color: #64748b; 
+  font-weight: 500; 
+}
 
 .stat-icon-blue {
   background: #eff6ff;
   color: var(--primary-blue);
   padding: 10px;
   border-radius: 10px;
-  height: fit-content;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* --- TRIPLE GRID (Top Section) --- */
+/* --- TRIPLE GRID --- */
 .triple-grid-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr 1.5fr 1fr; /* Middle column grows */
   gap: 1.5rem;
   margin-bottom: 2rem;
   align-items: stretch;
@@ -146,16 +160,21 @@
   flex-direction: column;
 }
 
-.card-title {
+.content-card h2 {
   font-size: 1.1rem;
   font-weight: 700;
   margin-bottom: 1.25rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  margin-top: 0;
 }
 
 /* --- SEARCH & LISTS --- */
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
 .search-wrapper {
   display: flex;
   align-items: center;
@@ -164,20 +183,20 @@
   border-radius: 8px;
   border: 1px solid var(--border-color);
 }
+
 .search-wrapper input {
   background: transparent;
   border: none;
   padding: 8px;
   font-size: 0.8rem;
   outline: none;
-  width: 120px;
+  width: 100px;
 }
 
 .scroll-area {
   flex-grow: 1;
   overflow-y: auto;
-  max-height: 300px;
-  padding-right: 5px;
+  max-height: 320px;
 }
 
 .course-row-simple {
@@ -189,7 +208,7 @@
 }
 
 .course-info h3 { font-size: 0.95rem; margin: 0; font-weight: 600; }
-.course-info p { font-size: 0.75rem; color: #64748b; }
+.course-info p { font-size: 0.75rem; color: #64748b; margin: 2px 0 0 0; }
 
 /* --- ACTION TILES --- */
 .actions-grid-compact {
@@ -206,7 +225,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -214,15 +233,14 @@
 .action-tile-compact:hover {
   background: white;
   border-color: var(--primary-blue);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
-.tile-icon { color: var(--primary-blue); }
-.tile-text h3 { font-size: 0.85rem; font-weight: 600; margin: 0; }
-.tile-text p { font-size: 0.7rem; color: #64748b; margin: 0; }
+.action-tile-compact h3 { font-size: 0.85rem; font-weight: 600; margin: 4px 0 0 0; }
+.action-tile-compact p { font-size: 0.7rem; color: #64748b; margin: 0; }
 
-/* --- RECENT SESSIONS (Full Width) --- */
+/* --- RECENT SESSIONS --- */
 .full-width-sessions {
   width: 100%;
   margin-top: 1rem;
@@ -232,9 +250,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 0;
+  padding: 1.25rem 0;
   border-bottom: 1px solid #f1f5f9;
 }
+
+.recent-row:last-child { border-bottom: none; }
 
 .recent-info h3 { font-size: 1rem; font-weight: 600; margin: 0; }
 .recent-info p { font-size: 0.85rem; color: #64748b; margin-top: 2px; }
@@ -245,15 +265,35 @@
   gap: 20px;
 }
 
+.recent-meta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
 .status-badge {
   padding: 6px 14px;
   border-radius: 20px;
   font-weight: 700;
   font-size: 0.75rem;
-  letter-spacing: 0.3px;
 }
+
 .status-badge.active { background: #dbeafe; color: #1e40af; }
 .status-badge.completed { background: #f1f5f9; color: #475569; }
+
+/* --- BUTTONS --- */
+.btn-primary-blue {
+  background: var(--primary-blue);
+  color: white;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
 
 /* --- ANIMATIONS --- */
 @keyframes pulse-red {
@@ -262,59 +302,30 @@
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
-/* Custom Scrollbar */
-.scroll-area::-webkit-scrollbar { width: 4px; }
-.scroll-area::-webkit-scrollbar-track { background: transparent; }
-.scroll-area::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-
-/* =========================
-   🔥 QUIZ POPUP (ADDED SAFELY)
-========================= */
-
+/* --- QUIZ POPUP --- */
 .quiz-popup-bar {
   margin-top: 1.5rem;
   background: white;
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 1rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  padding: 1.25rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .quiz-popup-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  font-size: 0.9rem;
 }
 
 .quiz-btn {
   background: var(--primary-blue);
   color: white;
   border: none;
-  padding: 6px 14px;
+  padding: 8px 20px;
   border-radius: 8px;
-  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.quiz-btn:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-.quiz-btn.secondary {
-  background: #f1f5f9;
-  color: var(--dark-slate);
-}
-
-.quiz-ready {
-  color: var(--success-green);
-  font-weight: 600;
-}
-
-.quiz-view-wrapper {
-  margin-top: 1rem;
-}
+.quiz-btn.secondary { background: #f1f5f9; color: var(--dark-slate); }

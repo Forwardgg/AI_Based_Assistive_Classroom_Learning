@@ -3,6 +3,7 @@ import { getCourses, joinCourse } from "../../courses/courseAPI";
 import socket from "../../../services/socket";
 import api from "../../../services/api";
 import QuizModal from "../../../features/quiz/QuizModal";
+import { Clock, BookOpen, BarChart2, Target, FileText } from "lucide-react";
 import "./StudentDashboard.css";
 
 const StudentDashboard = () => {
@@ -24,7 +25,19 @@ const StudentDashboard = () => {
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizPartitionId, setQuizPartitionId] = useState(null);
 
+  const [analytics, setAnalytics] = useState(null);
+
   const intervalRef = useRef(null);
+
+  // =========================
+  // FORMAT TIMER
+  // =========================
+  const formatTime = (t) => {
+    if (t === null) return "--:--";
+    const m = Math.floor(t / 60);
+    const s = t % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
 
   // =========================
   // FETCH COURSES
@@ -38,6 +51,18 @@ const StudentDashboard = () => {
       console.error("Failed to fetch courses");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // =========================
+  // FETCH ANALYTICS
+  // =========================
+  const fetchAnalytics = async () => {
+    try {
+      const res = await api.get("/analytics/student/me");
+      setAnalytics(res.data);
+    } catch (err) {
+      console.error("Analytics fetch failed", err);
     }
   };
 
@@ -58,7 +83,7 @@ const StudentDashboard = () => {
   };
 
   // =========================
-  // 🔥 RESTORE SESSION (FIXED)
+  // RESTORE SESSION
   // =========================
   const restoreSession = async () => {
     try {
@@ -81,7 +106,6 @@ const StudentDashboard = () => {
       socket.emit("join_session", { session_id: parseInt(sessionId) });
 
       await syncSessionState(sessionId);
-
     } catch (err) {
       console.error("Restore failed", err);
     }
@@ -92,6 +116,7 @@ const StudentDashboard = () => {
   // =========================
   useEffect(() => {
     fetchCourses();
+    fetchAnalytics();
     restoreSession();
   }, []);
 
@@ -120,7 +145,6 @@ const StudentDashboard = () => {
     setActiveSessionId(sessionId);
     setActiveCourse(courseId);
 
-    // 🔥 store for refresh restore
     localStorage.setItem("activeSessionId", sessionId);
     localStorage.setItem("activeCourseId", courseId);
 
@@ -135,7 +159,6 @@ const StudentDashboard = () => {
   // SOCKET LISTENERS
   // =========================
   useEffect(() => {
-
     const handleSessionState = (data) => {
       if (data.session_id !== activeSessionId) return;
 
@@ -167,6 +190,9 @@ const StudentDashboard = () => {
 
       setQuizPartitionId(data.partition_id);
       setShowQuiz(true);
+
+      // 🔥 refresh analytics after quiz
+      setTimeout(fetchAnalytics, 2000);
     };
 
     socket.on("session_state", handleSessionState);
@@ -180,7 +206,6 @@ const StudentDashboard = () => {
       socket.off("session_stopped", handleStopped);
       socket.off("quiz_ready", handleQuiz);
     };
-
   }, [activeSessionId]);
 
   // =========================
@@ -195,7 +220,6 @@ const StudentDashboard = () => {
     setActiveCourse(null);
     setShowQuiz(false);
 
-    // 🔥 clear stored session
     localStorage.removeItem("activeSessionId");
     localStorage.removeItem("activeCourseId");
   };
@@ -216,7 +240,6 @@ const StudentDashboard = () => {
 
     intervalRef.current = setInterval(updateTimer, 500);
     return () => clearInterval(intervalRef.current);
-
   }, [partitionEndTime, sessionStatus]);
 
   // =========================
@@ -236,7 +259,6 @@ const StudentDashboard = () => {
       setClassCode("");
       setRollNo("");
       fetchCourses();
-
     } catch {
       alert("Failed to join course.");
     } finally {
@@ -244,78 +266,206 @@ const StudentDashboard = () => {
     }
   };
 
+  const activeCourseData = courses.find(c => c.id === activeCourse);
+
   return (
-    <div className="student-container">
+    <div className="dashboard-wrapper">
+      <div className="dashboard-container">
 
-      <h1>Student Dashboard</h1>
-
-      {/* JOIN FORM */}
-      <form className="join-card" onSubmit={handleJoinCourse}>
-        <input
-          value={classCode}
-          onChange={(e) => setClassCode(e.target.value)}
-          placeholder="Class Code"
-        />
-        <input
-          value={rollNo}
-          onChange={(e) => setRollNo(e.target.value)}
-          placeholder="Roll No"
-        />
-        <button type="submit">
-          {joining ? "Joining..." : "Join"}
-        </button>
-      </form>
-
-      {/* COURSES */}
-      <div className="courses-grid">
-        {courses.map((course) => (
-          <div key={course.id} className="course-card">
-
-            <h3 className="course-title">{course.course_name}</h3>
-            <p className="course-meta">{course.semester} {course.year}</p>
-
-            {activeCourse === course.id ? (
-              <div className="session-info">
-                <p>Status: {sessionStatus}</p>
-
-                {currentPartition && (
-                  <p>Partition: {currentPartition}</p>
-                )}
-
-                {timeLeft !== null && sessionStatus === "active" && (
-                  <p>Time Left: {timeLeft}s</p>
-                )}
+        {/* HERO */}
+        {activeCourseData && sessionStatus && (
+          <section className="hero-banner">
+            <div>
+              <div className="hero-header">
+                <h2>{activeCourseData.course_name}</h2>
+                <span className="badge-live">
+  {sessionStatus.toUpperCase()}
+</span>
               </div>
-            ) : (
-              <button
-                className="btn btn-start"
-                onClick={async () => {
-                  const sessionId = await checkActiveSession(course.id);
+              <p className="current-topic">
+                Partition {currentPartition || "-"}
+              </p>
+            </div>
 
-                  if (!sessionId) {
-                    alert("No live session right now");
-                    return;
-                  }
+            <div className="hero-actions">
+              <div className="timer">
+                <Clock size={18} />
+                <span>{formatTime(timeLeft)}</span>
+              </div>
+            </div>
+          </section>
+        )}
 
-                  joinSession(sessionId, course.id);
-                }}
-              >
-                Join Live Session
-              </button>
-            )}
+        {/* JOIN COURSE */}
+        <form className="hero-banner" onSubmit={handleJoinCourse}>
+          <input
+            value={classCode}
+            onChange={(e) => setClassCode(e.target.value)}
+            placeholder="Class Code"
+          />
+          <input
+            value={rollNo}
+            onChange={(e) => setRollNo(e.target.value)}
+            placeholder="Roll No"
+          />
+          <button className="btn-join-hero">
+            {joining ? "Joining..." : "Join Course"}
+          </button>
+        </form>
 
+        {/* COURSES */}
+        <section>
+          <h3 className="section-title">
+            <BookOpen size={20} /> My Courses
+          </h3>
+
+          <div className="course-grid">
+            {courses.map((course) => {
+              const isActive = activeCourse === course.id;
+
+              return (
+                <div key={course.id} className="course-card-v2">
+                  <div className="card-top">
+                    <h4 className="course-name">{course.course_name}</h4>
+                    <span className={`status-badge ${isActive ? "live" : "inactive"}`}>
+                      {isActive ? "Live" : "Inactive"}
+                    </span>
+                  </div>
+
+                  <p className="instructor-name">
+                    {course.semester} {course.year}
+                  </p>
+
+                  <div className="button-group">
+                    {!isActive && (
+                      <button
+                        className="btn-join-v2"
+                        onClick={async () => {
+                          const sessionId = await checkActiveSession(course.id);
+                          if (!sessionId) return alert("No live session");
+                          joinSession(sessionId, course.id);
+                        }}
+                      >
+                        Join
+                      </button>
+                    )}
+
+                    <button className="btn-action-v2">
+                      <FileText size={16} /> Notes
+                    </button>
+
+                    <button className="btn-action-v2">
+                      <BarChart2 size={16} /> Results
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
+        </section>
+
+        {/* BOTTOM GRID */}
+        <div className="bottom-grid">
+
+          {/* PERFORMANCE */}
+          <div className="info-card">
+            <h3 className="card-title">
+              <BarChart2 size={20} color="#1e40af" /> Performance
+            </h3>
+
+            {analytics ? (
+              <>
+                <div className="stat-row">
+                  <div className="stat-info">
+                    <span>Accuracy</span>
+                    <span className="stat-value">
+                      {Math.round(analytics.overall_accuracy || 0)}%
+                    </span>
+                  </div>
+                  <div className="progress-bg">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${analytics.overall_accuracy || 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="stat-row">
+                  <div className="stat-info">
+                    <span>Participation</span>
+                    <span className="stat-value">
+                      {Math.round(analytics.participation_rate || 0)}%
+                    </span>
+                  </div>
+                  <div className="progress-bg">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${analytics.participation_rate || 0}%` }}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p>Loading...</p>
+            )}
+          </div>
+
+          {/* RESULTS */}
+          <div className="info-card">
+            <h3 className="card-title">
+              <Target size={20} color="#1e40af" /> Recent Results
+            </h3>
+
+            <div className="data-list">
+              {analytics?.sessions?.length ? (
+                analytics.sessions.slice(0, 3).map((s, i) => (
+                  <div key={i} className="data-row">
+                    <div>
+                      <div className="row-main">{s.course_name}</div>
+                      <div className="row-sub">
+                        {new Date(s.date).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <span className="score-badge">
+                      {s.score}/{s.total}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="data-row">No results yet</div>
+              )}
+            </div>
+
+            <button className="view-btn">View All Results</button>
+          </div>
+
+          {/* NOTES */}
+          <div className="info-card">
+            <h3 className="card-title">
+              <FileText size={20} color="#1e40af" /> Lecture Notes
+            </h3>
+
+            <div className="data-list">
+              {courses.map((course) => (
+                <div key={course.id} className="data-row">
+                  <div className="row-main">{course.course_name}</div>
+                  <button className="link-text">View</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        {/* QUIZ */}
+        {showQuiz && (
+          <QuizModal
+            partitionId={quizPartitionId}
+            onClose={() => setShowQuiz(false)}
+          />
+        )}
+
       </div>
-
-      {/* QUIZ */}
-      {showQuiz && (
-        <QuizModal
-          partitionId={quizPartitionId}
-          onClose={() => setShowQuiz(false)}
-        />
-      )}
-
     </div>
   );
 };
