@@ -1,91 +1,110 @@
-# backend/app/routes/analytics_routes.py
-
+#  backend/app/routes/analytics_routes.py
 from flask import Blueprint, jsonify
-from sqlalchemy import func, case
-from app import db
+from sqlalchemy import func
+from collections import defaultdict
 
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
+from app import db
+from app.models.session import Session
+from app.models.course import Course
 from app.models.session_partition import SessionPartition
 from app.models.quiz import Quiz
 from app.models.question import Question
 from app.models.student_answer import StudentAnswer
 from app.models.user import User
+from app.models.enrollment import Enrollment
 
-from flask_jwt_extended import get_jwt_identity, jwt_required
 
 analytics_bp = Blueprint("analytics", __name__)
 
 
-# =====================================================
-# 1. SESSION SUMMARY
-# =====================================================
-@analytics_bp.route("/session/<int:session_id>/summary", methods=["GET"])
-def get_session_summary(session_id):
-
-    total_answers = db.session.query(func.count(StudentAnswer.id)).join(
-        Question, StudentAnswer.question_id == Question.id
-    ).join(
-        Quiz, Question.quiz_id == Quiz.id
-    ).join(
-        SessionPartition, Quiz.partition_id == SessionPartition.id
-    ).filter(
-        SessionPartition.session_id == session_id
-    ).scalar() or 0
-
-    correct_answers = db.session.query(func.count(StudentAnswer.id)).join(
-        Question, StudentAnswer.question_id == Question.id
-    ).join(
-        Quiz, Question.quiz_id == Quiz.id
-    ).join(
-        SessionPartition, Quiz.partition_id == SessionPartition.id
-    ).filter(
-        SessionPartition.session_id == session_id,
-        StudentAnswer.is_correct.is_(True)
-    ).scalar() or 0
-
-    participants = db.session.query(
-        func.count(func.distinct(StudentAnswer.student_id))
-    ).join(
-        Question, StudentAnswer.question_id == Question.id
-    ).join(
-        Quiz, Question.quiz_id == Quiz.id
-    ).join(
-        SessionPartition, Quiz.partition_id == SessionPartition.id
-    ).filter(
-        SessionPartition.session_id == session_id
-    ).scalar() or 0
-
-    total_questions = db.session.query(func.count(Question.id)).join(
-        Quiz, Question.quiz_id == Quiz.id
-    ).join(
-        SessionPartition, Quiz.partition_id == SessionPartition.id
-    ).filter(
-        SessionPartition.session_id == session_id
-    ).scalar() or 0
-
-    accuracy = (correct_answers / total_answers) if total_answers else 0
-
-    return jsonify({
-        "accuracy": accuracy,
-        "participants": participants,
-        "total_questions": total_questions
-    })
+# =========================
+# HELPER: USER RESOLUTION
+# =========================
+def resolve_user(identity):
+    if isinstance(identity, int):
+        return User.query.get(identity)
+    if isinstance(identity, str) and identity.isdigit():
+        return User.query.get(int(identity))
+    return User.query.filter_by(email=identity).first()
 
 
 # =====================================================
-# 2. PARTITION ANALYTICS (RESTORED 🔥)
+# 🔹 NEW: GET ALL SESSIONS (FOR DROPDOWN)
 # =====================================================
-@analytics_bp.route("/session/<int:session_id>/partitions", methods=["GET"])
-def get_partition_analytics(session_id):
+@analytics_bp.route("/sessions", methods=["GET"])
+@jwt_required()
+def get_sessions():
 
-    results = db.session.query(
+    identity = get_jwt_identity()
+    user = resolve_user(identity)
+
+    if not user or user.role != "professor":
+        return jsonify({"error": "Access denied"}), 403
+
+    sessions = (
+        db.session.query(Session)
+        .join(Course)
+        .filter(Course.professor_id == user.id)
+        .order_by(Session.created_at.desc())
+        .all()
+    )
+
+    return jsonify([
+        {
+            "id": s.id,
+            "course_name": s.course.course_name,
+            "date": s.created_at.isoformat()
+        }
+        for s in sessions
+    ])
+
+
+# =====================================================
+# 🔹 MAIN ANALYTICS ROUTE
+# =====================================================
+@analytics_bp.route("/session/<int:session_id>", methods=["GET"])
+@jwt_required()
+def get_professor_session_analytics(session_id):
+
+    # ===== AUTH =====
+    identity = get_jwt_identity()
+    user = resolve_user(identity)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user.role != "professor":
+        return jsonify({"error": "Access denied"}), 403
+
+    # =========================
+    # SESSION (AUTO-FALLBACK)
+    # =========================
+    session = Session.query.get(session_id)
+
+    if not session:
+        session = Session.query.order_by(Session.created_at.desc()).first()
+
+        if not session:
+            return jsonify({"error": "No sessions available"}), 404
+
+    session_id = session.id  # update
+
+    course = Course.query.get(session.course_id)
+
+    if course.professor_id != user.id:
+        return jsonify({"error": "Not your course"}), 403
+
+    # =========================
+    # 🔥 BASE QUERY
+    # =========================
+    rows = db.session.query(
         SessionPartition.partition_index,
-        func.count(StudentAnswer.id).label("total"),
-        func.coalesce(
-            func.sum(
-                case((StudentAnswer.is_correct.is_(True), 1), else_=0)
-            ),
-            0
-        ).label("correct")
+        Question.id.label("question_id"),
+        Question.question_text,
+        StudentAnswer.student_id,
+        StudentAnswer.is_correct
     ).join(
         Quiz, Quiz.partition_id == SessionPartition.id
     ).join(
@@ -94,180 +113,136 @@ def get_partition_analytics(session_id):
         StudentAnswer, StudentAnswer.question_id == Question.id
     ).filter(
         SessionPartition.session_id == session_id
-    ).group_by(SessionPartition.partition_index).all()
+    ).all()
 
-    data = []
-    for r in results:
-        total = r.total or 0
-        correct = r.correct or 0
-        accuracy = (correct / total) if total else 0
+    # =========================
+    # AGGREGATION
+    # =========================
+    total_answers = 0
+    total_correct = 0
 
-        data.append({
-            "partition_index": r.partition_index,
-            "accuracy": accuracy,
-            "total_answers": total
+    students = defaultdict(lambda: {"attempts": 0, "correct": 0})
+    partitions = defaultdict(lambda: {"total": 0, "correct": 0})
+    questions = defaultdict(lambda: {"text": "", "total": 0, "correct": 0})
+
+    for r in rows:
+        total_answers += 1
+        if r.is_correct:
+            total_correct += 1
+
+        students[r.student_id]["attempts"] += 1
+        if r.is_correct:
+            students[r.student_id]["correct"] += 1
+
+        partitions[r.partition_index]["total"] += 1
+        if r.is_correct:
+            partitions[r.partition_index]["correct"] += 1
+
+        questions[r.question_id]["text"] = r.question_text
+        questions[r.question_id]["total"] += 1
+        if r.is_correct:
+            questions[r.question_id]["correct"] += 1
+
+    # =========================
+    # STATS
+    # =========================
+    students_participated = len(students)
+
+    avg_accuracy = (total_correct / total_answers * 100) if total_answers else 0
+    avg_attempts = (total_answers / students_participated) if students_participated else 0
+
+    # =========================
+    # TREND + WEAK TOPICS
+    # =========================
+    trend = []
+    weak_topics = []
+
+    for p, data in sorted(partitions.items()):
+        acc = (data["correct"] / data["total"] * 100) if data["total"] else 0
+
+        trend.append({
+            "partition": p,
+            "accuracy": round(acc, 2)
         })
 
-    return jsonify(data)
+        status = "strong" if acc >= 70 else "medium" if acc >= 40 else "weak"
 
-
-# =====================================================
-# 3. STUDENT ANALYTICS (SESSION LEVEL)
-# =====================================================
-@analytics_bp.route("/session/<int:session_id>/students", methods=["GET"])
-def get_student_analytics(session_id):
-
-    results = db.session.query(
-        StudentAnswer.student_id,
-        User.name,
-        func.count(StudentAnswer.id).label("attempted"),
-        func.coalesce(
-            func.sum(
-                case((StudentAnswer.is_correct.is_(True), 1), else_=0)
-            ),
-            0
-        ).label("correct")
-    ).join(
-        User, User.id == StudentAnswer.student_id
-    ).join(
-        Question, StudentAnswer.question_id == Question.id
-    ).join(
-        Quiz, Question.quiz_id == Quiz.id
-    ).join(
-        SessionPartition, Quiz.partition_id == SessionPartition.id
-    ).filter(
-        SessionPartition.session_id == session_id
-    ).group_by(StudentAnswer.student_id, User.name).all()
-
-    data = []
-    for r in results:
-        attempted = r.attempted or 0
-        correct = r.correct or 0
-        accuracy = (correct / attempted) if attempted else 0
-
-        data.append({
-            "student_id": r.student_id,
-            "name": r.name,
-            "attempted": attempted,
-            "correct": correct,
-            "accuracy": accuracy
+        weak_topics.append({
+            "topic": f"Partition {p}",
+            "partition": p,
+            "accuracy": round(acc, 2),
+            "status": status
         })
 
-    return jsonify(data)
+    # =========================
+    # QUESTIONS
+    # =========================
+    question_list = []
 
+    for _, data in questions.items():
+        acc = (data["correct"] / data["total"] * 100) if data["total"] else 0
 
-# =====================================================
-# 4. QUESTION ANALYTICS (RESTORED 🔥)
-# =====================================================
-@analytics_bp.route("/session/<int:session_id>/questions", methods=["GET"])
-def get_question_analytics(session_id):
+        if acc >= 75:
+            diff = "easy"
+        elif acc >= 40:
+            diff = "medium"
+        else:
+            diff = "hard"
 
-    results = db.session.query(
-        Question.id,
-        Question.question_text,
-        func.count(StudentAnswer.id).label("total"),
-        func.coalesce(
-            func.sum(
-                case((StudentAnswer.is_correct.is_(True), 1), else_=0)
-            ),
-            0
-        ).label("correct")
-    ).join(
-        Quiz, Question.quiz_id == Quiz.id
-    ).join(
-        SessionPartition, Quiz.partition_id == SessionPartition.id
-    ).join(
-        StudentAnswer, StudentAnswer.question_id == Question.id
-    ).filter(
-        SessionPartition.session_id == session_id
-    ).group_by(Question.id).all()
-
-    data = []
-
-    for r in results:
-        total = r.total or 0
-        correct = r.correct or 0
-        correct_rate = (correct / total) if total else 0
-
-        option_counts = db.session.query(
-            StudentAnswer.selected_option,
-            func.count(StudentAnswer.id)
-        ).filter(
-            StudentAnswer.question_id == r.id
-        ).group_by(StudentAnswer.selected_option).all()
-
-        most_selected = None
-        if option_counts:
-            most_selected = max(option_counts, key=lambda x: x[1])[0]
-
-        data.append({
-            "question_id": r.id,
-            "question_text": r.question_text,
-            "correct_rate": correct_rate,
-            "most_selected_option": most_selected
+        question_list.append({
+            "question": data["text"],
+            "accuracy": round(acc, 2),
+            "difficulty": diff
         })
 
-    return jsonify(data)
+    # =========================
+    # STUDENTS
+    # =========================
+    student_list = []
 
+    for sid, data in students.items():
+        acc = (data["correct"] / data["attempts"] * 100) if data["attempts"] else 0
+        user_obj = User.query.get(sid)
 
-# =====================================================
-# 5. STUDENT PERSONAL RESULTS (WORKING ✅)
-# =====================================================
-@analytics_bp.route("/student/me", methods=["GET"])
-@jwt_required()
-def get_my_results():
-
-    identity = get_jwt_identity()
-    print("🔍 RAW JWT identity:", identity, type(identity))
-
-    user_id = None
-
-    if isinstance(identity, int):
-        user_id = identity
-    elif isinstance(identity, str) and identity.isdigit():
-        user_id = int(identity)
-    else:
-        user = User.query.filter_by(email=identity).first()
-        if user:
-            user_id = user.id
-
-    if not user_id:
-        return jsonify({
-            "error": "User not found",
-            "identity": identity
-        }), 404
-
-    results = db.session.query(
-        SessionPartition.session_id,
-        func.count(StudentAnswer.id).label("attempted"),
-        func.coalesce(
-            func.sum(
-                case((StudentAnswer.is_correct.is_(True), 1), else_=0)
-            ),
-            0
-        ).label("correct")
-    ).join(
-        Question, StudentAnswer.question_id == Question.id
-    ).join(
-        Quiz, Question.quiz_id == Quiz.id
-    ).join(
-        SessionPartition, Quiz.partition_id == SessionPartition.id
-    ).filter(
-        StudentAnswer.student_id == user_id
-    ).group_by(SessionPartition.session_id).all()
-
-    data = []
-
-    for r in results:
-        attempted = r.attempted or 0
-        correct = r.correct or 0
-        accuracy = (correct / attempted) if attempted else 0
-
-        data.append({
-            "session_id": r.session_id,
-            "attempted": attempted,
-            "correct": correct,
-            "accuracy": accuracy
+        student_list.append({
+            "name": user_obj.name if user_obj else "Unknown",
+            "attempts": data["attempts"],
+            "accuracy": round(acc, 2)
         })
 
-    return jsonify(data)
+    # =========================
+    # PARTICIPATION
+    # =========================
+    total_students = db.session.query(func.count(Enrollment.id))\
+        .filter(Enrollment.course_id == course.id)\
+        .scalar() or 0
+
+    participation_rate = (
+        (students_participated / total_students) * 100
+        if total_students else 0
+    )
+
+    # =========================
+    # RESPONSE
+    # =========================
+    return jsonify({
+        "header": {
+            "course_name": course.course_name,
+            "session_date": session.created_at.isoformat()
+        },
+        "stats": {
+            "avg_accuracy": round(avg_accuracy, 2),
+            "students_participated": students_participated,
+            "questions_attempted": total_answers,
+            "avg_attempts_per_student": round(avg_attempts, 2)
+        },
+        "trend": trend,
+        "weak_topics": weak_topics,
+        "questions": question_list,
+        "students": student_list,
+        "participation": {
+            "rate": round(participation_rate, 2),
+            "participated": students_participated,
+            "not_participated": max(total_students - students_participated, 0)
+        }
+    })

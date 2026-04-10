@@ -1,8 +1,8 @@
 // frontend/src/features/dashboard/pages/ProfessorDashboardUI.jsx
 import React, { useState } from "react";
 import {
-  BookOpen, Users, Clock, Brain, Plus, Mic, FileText, BarChart3,
-  Pause, Play, Square, Search
+  BookOpen, Users, Clock, Brain, Plus, FileText, BarChart3,
+  Pause, Play, Square, Search, X, Library
 } from "lucide-react";
 
 import CreateCourse from "../../courses/pages/CreateCourse";
@@ -12,10 +12,10 @@ import "./ProfessorDashboardUI.css";
 
 const ProfessorDashboardUI = ({
   courses, loading, activeCourse, sessionStatus, currentPartition, timeLeft,
-  showModal, selectedCourse, showQuizPrompt, lastPartitionId, quizGenerated,
-  loadingQuiz, onStartSession, onPause, onResume, onStop, onGenerateQuiz,
-  onCreateSession, onCloseModal, onFetchCourses,
-  onCloseQuiz   // ✅ NEW PROP
+  showModal, showCourseModal, selectedCourse, showQuizPrompt, lastPartitionId, 
+  quizGenerated, loadingQuiz, onStartSession, onPause, onResume, onStop, 
+  onGenerateQuiz, onCreateSession, onCloseModal, onOpenCourseModal, 
+  onCloseCourseModal, onFetchCourses, onCloseQuiz 
 }) => {
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -36,7 +36,7 @@ const ProfessorDashboardUI = ({
     <div className="dashboard-container">
       <main className="main-content">
 
-        {/* 🔥 LIVE SESSION BAR */}
+        {/* --- LIVE SESSION BAR --- */}
         {(sessionStatus === "active" || sessionStatus === "paused") && (
           <div className={`session-control-bar ${sessionStatus}`}>
             <div className="session-bar-info">
@@ -64,13 +64,13 @@ const ProfessorDashboardUI = ({
           </div>
         )}
 
-        {/* Greeting */}
+        {/* Greeting Section */}
         <header className="greeting">
           <h1>Good morning, Professor</h1>
           <p>Here's an overview of your lecture activity.</p>
         </header>
 
-        {/* Stats */}
+        {/* Stats Grid */}
         <div className="stats-row">
           <StatCard title="Total Sessions" value="24" label="This semester" Icon={BookOpen} />
           <StatCard title="Active Students" value="127" label="Across courses" Icon={Users} />
@@ -79,13 +79,9 @@ const ProfessorDashboardUI = ({
         </div>
 
         <div className="dashboard-layout-stack">
+          <div className="dual-grid-row">
 
-          <div className="triple-grid-row">
-
-            <div className="content-card flex-column">
-              <CreateCourse onCourseCreated={onFetchCourses} />
-            </div>
-
+            {/* MAIN COLUMN: YOUR COURSES */}
             <div className="content-card flex-column list-container">
               <div className="list-header">
                 <h2>Your Courses</h2>
@@ -93,7 +89,7 @@ const ProfessorDashboardUI = ({
                   <Search size={14} />
                   <input
                     type="text"
-                    placeholder="Search..."
+                    placeholder="Search courses..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -111,12 +107,12 @@ const ProfessorDashboardUI = ({
                     {activeCourse === course.id && sessionStatus !== "completed" ? (
                       <div className="session-controls">
                         {sessionStatus === "active" && (
-                          <button onClick={onPause}><Pause size={14}/> Pause</button>
+                          <button onClick={onPause} className="btn-icon-only"><Pause size={14}/></button>
                         )}
                         {sessionStatus === "paused" && (
-                          <button onClick={onResume}><Play size={14}/> Resume</button>
+                          <button onClick={onResume} className="btn-icon-only"><Play size={14}/></button>
                         )}
-                        <button onClick={onStop}><Square size={14}/> Stop</button>
+                        <button onClick={onStop} className="btn-icon-only stop"><Square size={14}/></button>
                       </div>
                     ) : (
                       <button
@@ -126,24 +122,42 @@ const ProfessorDashboardUI = ({
                         Start
                       </button>
                     )}
-
                   </div>
                 ))}
               </div>
             </div>
 
+            {/* SIDE COLUMN: QUICK ACTIONS (2x2 Grid) */}
             <aside className="content-card flex-column">
               <h2>Quick Actions</h2>
               <div className="actions-grid-compact">
-                <ActionButton icon={<Plus size={18} />} title="New Session" desc="Start lecture" onClick={() => onStartSession(null)} />
-                <ActionButton icon={<Mic size={18} />} title="Record" desc="Audio" />
-                <ActionButton icon={<FileText size={18} />} title="Notes" desc="PDF" />
-                <ActionButton icon={<BarChart3 size={18} />} title="Analytics" desc="Insights" />
+                <ActionButton 
+                  icon={<Plus size={18} />} 
+                  title="Create Course" 
+                  desc="Add new" 
+                  onClick={onOpenCourseModal} 
+                />
+                <ActionButton 
+                  icon={<FileText size={18} />} 
+                  title="Notes" 
+                  desc="PDFs" 
+                />
+                <ActionButton 
+                  icon={<Library size={18} />} 
+                  title="Quiz Library" 
+                  desc="AI & Custom" 
+                />
+                <ActionButton 
+                  icon={<BarChart3 size={18} />} 
+                  title="Analytics" 
+                  desc="Insights" 
+                />
               </div>
             </aside>
 
           </div>
 
+          {/* RECENT SESSIONS LIST */}
           <div className="content-card full-width-sessions">
             <h2>Recent Sessions</h2>
             <div className="recent-list-horizontal">
@@ -164,46 +178,38 @@ const ProfessorDashboardUI = ({
               ))}
             </div>
           </div>
-
         </div>
 
-        {/* 🔥 QUIZ FLOW FIXED */}
+        {/* --- OVERLAYS & MODALS --- */}
+
+        {/* Quiz Flow Bar */}
         {showQuizPrompt && (
           <div className="quiz-popup-bar">
-
             <div className="quiz-popup-content">
               <span>Partition complete</span>
-
               {loadingQuiz && <span>Generating quiz...</span>}
-
               {!quizGenerated && !loadingQuiz && (
                 <button className="quiz-btn" onClick={onGenerateQuiz}>
                   Generate Quiz
                 </button>
               )}
-
-              {quizGenerated && (
-                <span className="quiz-ready">Quiz Ready</span>
-              )}
-
+              {quizGenerated && <span className="quiz-ready">Quiz Ready</span>}
               <button className="quiz-btn secondary" onClick={onResume}>
                 Resume
               </button>
             </div>
-
             {quizGenerated && (
               <div className="quiz-view-wrapper">
                 <ProfessorQuizView
                   partitionId={lastPartitionId}
-                  onClose={onCloseQuiz}   // ✅ FIXED
+                  onClose={onCloseQuiz}
                 />
               </div>
             )}
-
           </div>
         )}
 
-        {/* MODAL */}
+        {/* Start Session Modal */}
         {showModal && (
           <SessionModal
             courseId={selectedCourse}
@@ -212,12 +218,30 @@ const ProfessorDashboardUI = ({
           />
         )}
 
+        {/* Create Course Modal */}
+        {showCourseModal && (
+          <div className="modal-overlay" onClick={onCloseCourseModal}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Create New Course</h2>
+                <button className="close-btn" onClick={onCloseCourseModal}>
+                  <X size={20} />
+                </button>
+              </div>
+              <CreateCourse onCourseCreated={() => {
+                onFetchCourses();
+                onCloseCourseModal();
+              }} />
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );
 };
 
-/* Components */
+/* Internal UI Components */
 
 const StatCard = ({ title, value, label, Icon }) => (
   <div className="stat-card-white">
@@ -232,9 +256,11 @@ const StatCard = ({ title, value, label, Icon }) => (
 
 const ActionButton = ({ icon, title, desc, onClick }) => (
   <button className="action-tile-compact" onClick={onClick}>
-    <div>{icon}</div>
-    <h3>{title}</h3>
-    <p>{desc}</p>
+    <div className="action-icon-wrapper">{icon}</div>
+    <div className="action-text">
+      <h3>{title}</h3>
+      <p>{desc}</p>
+    </div>
   </button>
 );
 
