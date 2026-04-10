@@ -1,31 +1,33 @@
-import { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState, useContext } from "react";
+import {
+  Trash2,
+  FileText,
+  BarChart2,
+  Copy,
+} from "lucide-react";
 import { useParams } from "react-router-dom";
 import { getCourses } from "../courseAPI";
-import SessionModal from "../../lectures/pages/SessionModal";
-import ProfessorQuizView from "../../quiz/ProfessorQuizView";
 import api from "../../../services/api";
-import { AuthContext } from "../../auth/AuthContext"; // ✅ NEW
+import { AuthContext } from "../../auth/AuthContext";
+import ProfessorQuizView from "../../quiz/ProfessorQuizView";
 import "./CourseDetails.css";
 
 const CourseDetails = () => {
   const { courseId } = useParams();
-  const { user } = useContext(AuthContext); // ✅ NEW
+  const { user } = useContext(AuthContext);
 
-  const isStudent = user?.role === "student"; // ✅ NEW
+  const isStudent = user?.role === "student";
 
   const [course, setCourse] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [showModal, setShowModal] = useState(false);
-
+  const [notes, setNotes] = useState(null);
   const [selectedPartition, setSelectedPartition] = useState(null);
   const [showQuiz, setShowQuiz] = useState(false);
 
-  const [notes, setNotes] = useState(null);
-
   // =========================
-  // FETCH COURSE + SESSIONS
+  // FETCH DATA
   // =========================
   const fetchData = async () => {
     setLoading(true);
@@ -40,7 +42,6 @@ const CourseDetails = () => {
 
       const sessionRes = await api.get(`/courses/${courseId}/sessions`);
       setSessions(sessionRes.data);
-
     } catch (err) {
       console.error("Failed to fetch data");
     } finally {
@@ -58,7 +59,6 @@ const CourseDetails = () => {
   const handleCopy = () => {
     if (!course) return;
     navigator.clipboard.writeText(course.class_code);
-    alert("Class code copied!");
   };
 
   // =========================
@@ -68,124 +68,118 @@ const CourseDetails = () => {
     try {
       const res = await api.get(`/sessions/${sessionId}/notes`);
       setNotes(res.data.summary_text);
-    } catch (err) {
+    } catch {
       alert("No notes available yet");
     }
+  };
+
+  // =========================
+  // DELETE COURSE (placeholder)
+  // =========================
+  const handleDelete = () => {
+    alert("Delete functionality not implemented yet");
   };
 
   if (loading) return <p>Loading...</p>;
   if (!course) return <p>Course not found</p>;
 
   return (
-    <div className="course-details-container">
-
+    <div className="container">
       {/* HEADER */}
-      <div className="course-header">
+      <header className="header">
         <h1>{course.course_name}</h1>
-        <p className="meta">
+        <p className="semester-text">
           {course.semester} {course.year}
         </p>
 
-        <div className="course-code-box">
-          <span>Class Code: {course.class_code}</span>
-
-          {/* 👇 Only professor should copy */}
-          {!isStudent && (
-            <button className="btn btn-copy" onClick={handleCopy}>
-              Copy
-            </button>
-          )}
+        <div className="course-id-row">
+          <span className="course-badge">
+            {course.class_code}
+            <Copy size={14} className="icon-copy" onClick={handleCopy} />
+          </span>
         </div>
-      </div>
 
-      {/* ACTION */}
-      {!isStudent && (
-        <div className="course-actions">
-          <button
-            className="btn btn-start"
-            onClick={() => setShowModal(true)}
-          >
-            Start New Session
+        {!isStudent && (
+          <button className="delete-btn" onClick={handleDelete}>
+            <Trash2 size={16} /> Delete Course
           </button>
-        </div>
-      )}
+        )}
+      </header>
 
-      {/* =========================
-          SESSION HISTORY
-      ========================= */}
-      <div className="sessions-section">
-        <h2>Session History</h2>
-
+      {/* SESSIONS */}
+      <div className="sessions-list">
         {sessions.length === 0 ? (
-          <p className="empty-state">No sessions yet</p>
+          <p>No sessions yet</p>
         ) : (
           sessions.map((session) => (
             <div key={session.id} className="session-card">
-
               <div className="session-header">
-                <h3>Session #{session.id}</h3>
-                <span className={`status ${session.status}`}>
-                  {session.status}
+                <div className="session-title-group">
+                  <h2 className="session-title">
+                    Session #{session.id}
+                  </h2>
+                  <span
+                    className={`status-badge ${
+  ["active", "completed"].includes((session.status || "").toLowerCase())
+    ? (session.status || "").toLowerCase()
+    : "pending"
+}`}
+                  >
+                    {session.status}
+                  </span>
+                </div>
+
+                <span className="duration-text">
+                  {session.duration_minutes} min
                 </span>
               </div>
 
-              <p>Duration: {session.duration_minutes} mins</p>
-
-              {/* SESSION ACTIONS */}
-              <div className="session-actions">
-
+              {/* ACTIONS */}
+              <div className="action-buttons">
                 <button
-                  className="btn btn-notes"
+                  className="secondary-btn"
                   onClick={() => handleViewNotes(session.id)}
                 >
-                  View Notes
+                  <FileText size={16} /> View Notes
                 </button>
 
-                {/* 👇 Only professor */}
                 {!isStudent && (
-                  <button className="btn btn-report">
-                    Generate Report
+                  <button className="secondary-btn">
+                    <BarChart2 size={16} /> Generate Report
                   </button>
                 )}
-
               </div>
 
-              {/* =========================
-                  PARTITIONS
-              ========================= */}
-              <div className="partition-list">
-                <h4>Partitions</h4>
-
+              {/* PARTITIONS */}
+              <div className="parts-container">
                 {session.partitions?.map((p) => (
-                  <div key={p.id} className="partition-card">
-
-                    <span>
-                      Part {p.partition_index} ({p.start_minute}–{p.end_minute} min)
+                  <div key={p.id} className="part-row">
+                    <span className="part-name">
+                      Part {p.partition_index}
+                      <span className="part-time">
+                        {" "}
+                        · {p.start_minute} - {p.end_minute} min
+                      </span>
                     </span>
 
                     <button
-                      className="btn btn-quiz"
+                      className="view-quiz-btn"
                       onClick={() => {
                         setSelectedPartition(p.id);
                         setShowQuiz(true);
                       }}
                     >
-                      View Quiz
+                      <FileText size={14} /> View Quiz
                     </button>
-
                   </div>
                 ))}
-
               </div>
-
             </div>
           ))
         )}
       </div>
 
-      {/* =========================
-          NOTES MODAL
-      ========================= */}
+      {/* NOTES MODAL */}
       {notes && (
         <div className="notes-modal">
           <div className="notes-content">
@@ -196,27 +190,13 @@ const CourseDetails = () => {
         </div>
       )}
 
-      {/* =========================
-          QUIZ VIEW
-      ========================= */}
+      {/* QUIZ VIEW */}
       {showQuiz && (
         <ProfessorQuizView
           partitionId={selectedPartition}
           onClose={() => setShowQuiz(false)}
         />
       )}
-
-      {/* =========================
-          SESSION MODAL (PROF ONLY)
-      ========================= */}
-      {!isStudent && showModal && (
-        <SessionModal
-          courseId={course.id}
-          onClose={() => setShowModal(false)}
-          onCreate={() => setShowModal(false)}
-        />
-      )}
-
     </div>
   );
 };

@@ -1,22 +1,28 @@
-// frontend/src/features/courses/pages/ProfessorCourses.jsx
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import {
+  Search,
+  Plus,
+  Filter,
+  ArrowUpDown,
+  ExternalLink,
+  Copy,
+  Video,
+  X,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getCourses } from "../courseAPI";
 import CreateCourse from "./CreateCourse";
-import SessionModal from "../../lectures/pages/SessionModal";
 import "./ProfessorCourses.css";
 
 const ProfessorCourses = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [showModal, setShowModal] = useState(false);
-  const [selectedCourse, setSelectedCourse] = useState(null);
-
-  // 🔍 SEARCH + SORT + FILTER STATES
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("name");
   const [semesterFilter, setSemesterFilter] = useState("all");
+  const [sort, setSort] = useState("name");
+
+  const [showModal, setShowModal] = useState(false);
 
   const navigate = useNavigate();
 
@@ -40,174 +46,189 @@ const ProfessorCourses = () => {
   }, []);
 
   // =========================
-  // FILTER + SORT LOGIC
+  // FILTER + SORT
   // =========================
   const filteredCourses = useMemo(() => {
     let result = [...courses];
 
-    // 🔍 SEARCH
     if (search.trim()) {
-      result = result.filter((course) =>
-        course.course_name.toLowerCase().includes(search.toLowerCase()) ||
-        course.class_code.toLowerCase().includes(search.toLowerCase())
-      );
-    }
-
-    // 🎛 FILTER (semester)
-    if (semesterFilter !== "all") {
       result = result.filter(
-        (course) => course.semester === semesterFilter
+        (c) =>
+          c.course_name.toLowerCase().includes(search.toLowerCase()) ||
+          c.class_code.toLowerCase().includes(search.toLowerCase())
       );
     }
 
-    // 🔽 SORT
+    if (semesterFilter !== "all") {
+      result = result.filter((c) => c.semester === semesterFilter);
+    }
+
     switch (sort) {
       case "name":
-        result.sort((a, b) =>
-          a.course_name.localeCompare(b.course_name)
-        );
+        result.sort((a, b) => a.course_name.localeCompare(b.course_name));
         break;
       case "year":
         result.sort((a, b) => b.year - a.year);
         break;
       case "semester":
-        result.sort((a, b) =>
-          a.semester.localeCompare(b.semester)
-        );
+        result.sort((a, b) => a.semester.localeCompare(b.semester));
         break;
       default:
         break;
     }
 
     return result;
-  }, [courses, search, sort, semesterFilter]);
+  }, [courses, search, semesterFilter, sort]);
 
   // =========================
   // COPY CODE
   // =========================
   const handleCopy = (code) => {
     navigator.clipboard.writeText(code);
-    alert("Class code copied!");
   };
 
   return (
     <div className="courses-container">
-
       {/* HEADER */}
-      <div className="courses-header">
-        <h1>Courses</h1>
-        <p>Manage and organize your courses</p>
+      <header className="header-section">
+        <div className="header-left">
+          <h1>Courses</h1>
+          <p>Manage your courses and lecture sessions.</p>
+        </div>
+
+        <button
+          className="create-btn"
+          onClick={() => setShowModal(true)}
+        >
+          <Plus size={18} /> Create Course
+        </button>
+      </header>
+
+      {/* TOOLBAR */}
+      <div className="toolbar">
+        <div className="search-wrapper">
+          <Search className="search-icon" size={18} />
+          <input
+            type="text"
+            placeholder="Search by name or class code..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        <div className="filters">
+          <div className="select-wrapper">
+            <Filter size={16} />
+            <select
+              value={semesterFilter}
+              onChange={(e) => setSemesterFilter(e.target.value)}
+            >
+              <option value="all">All Semesters</option>
+              <option value="spring">Spring</option>
+              <option value="autumn">Autumn</option>
+            </select>
+          </div>
+
+          <div className="select-wrapper">
+            <ArrowUpDown size={16} />
+            <select value={sort} onChange={(e) => setSort(e.target.value)}>
+              <option value="name">Name</option>
+              <option value="year">Year</option>
+              <option value="semester">Semester</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* CREATE COURSE */}
-      <CreateCourse onCourseCreated={fetchCourses} />
-
-      {/* CONTROLS */}
-      <div className="courses-controls">
-
-        {/* SEARCH */}
-        <input
-          type="text"
-          placeholder="Search by name or code..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="search-input"
-        />
-
-        {/* FILTER */}
-        <select
-          value={semesterFilter}
-          onChange={(e) => setSemesterFilter(e.target.value)}
-          className="filter-select"
-        >
-          <option value="all">All Semesters</option>
-          <option value="spring">Spring</option>
-          <option value="autumn">Autumn</option>
-        </select>
-
-        {/* SORT */}
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          className="sort-select"
-        >
-          <option value="name">Sort by Name</option>
-          <option value="year">Sort by Year</option>
-          <option value="semester">Sort by Semester</option>
-        </select>
-
-      </div>
-
-      {/* COURSE LIST */}
-      <div className="courses-section">
+      {/* COURSE GRID */}
+      <div className="course-grid">
         {loading ? (
           <p>Loading courses...</p>
         ) : filteredCourses.length === 0 ? (
-          <p className="empty-state">
-            No matching courses found
-          </p>
+          <p>No courses found</p>
         ) : (
-          <div className="course-grid">
-            {filteredCourses.map((course) => (
-              <div key={course.id} className="course-card">
-
-                <div className="course-info">
+          filteredCourses.map((course) => (
+            <div key={course.id} className="course-card">
+              <div className="card-header">
+                <div>
                   <h3>{course.course_name}</h3>
-                  <p className="meta">
-                    {course.semester} {course.year}
-                  </p>
-                  <p className="code">
-                    Code: <span>{course.class_code}</span>
-                  </p>
+                  <span className="subtitle">
+                    {course.semester} {course.year} • {course.class_code}
+                  </span>
                 </div>
 
-                {/* ACTIONS */}
-                <div className="course-actions">
+                {course.live && (
+                  <span className="live-badge">
+                    <Video size={12} /> Live
+                  </span>
+                )}
+              </div>
 
-                  <button
-                    className="btn btn-open"
-                    onClick={() =>
-                      navigate(
-                        `/dashboard/professor/courses/${course.id}`
-                      )
-                    }
-                  >
-                    Open
-                  </button>
+              <div className="stats-row">
+                <div className="stat-box">
+                  <span className="stat-value">
+                    {course.students_count || 0}
+                  </span>
+                  <span className="stat-label">Students</span>
+                </div>
 
-                  <button
-                    className="btn btn-start"
-                    onClick={() => {
-                      setSelectedCourse(course.id);
-                      setShowModal(true);
-                    }}
-                  >
-                    Start Session
-                  </button>
+                <div className="stat-box">
+                  <span className="stat-value">
+                    {course.sessions_count || 0}
+                  </span>
+                  <span className="stat-label">Sessions</span>
+                </div>
 
-                  <button
-                    className="btn btn-copy"
-                    onClick={() => handleCopy(course.class_code)}
-                  >
-                    Copy Code
-                  </button>
-
+                <div className="stat-box">
+                  <span className="stat-value">
+                    {course.last_session || "-"}
+                  </span>
+                  <span className="stat-label">Last Session</span>
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div className="card-footer">
+                <button
+                  className="btn-outline"
+                  onClick={() =>
+                    navigate(`/dashboard/professor/courses/${course.id}`)
+                  }
+                >
+                  <ExternalLink size={16} /> Open
+                </button>
+
+                <button
+                  className="btn-primary"
+                  onClick={() => handleCopy(course.class_code)}
+                >
+                  <Copy size={16} /> Copy Code
+                </button>
+              </div>
+            </div>
+          ))
         )}
       </div>
 
-      {/* SESSION MODAL */}
+      {/* MODAL */}
       {showModal && (
-        <SessionModal
-          courseId={selectedCourse}
-          onClose={() => setShowModal(false)}
-          onCreate={() => setShowModal(false)}
-        />
-      )}
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <button
+              className="modal-close"
+              onClick={() => setShowModal(false)}
+            >
+              <X size={18} />
+            </button>
 
+            <CreateCourse
+              onCourseCreated={() => {
+                fetchCourses();
+                setShowModal(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

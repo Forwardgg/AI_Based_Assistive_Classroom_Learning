@@ -1,187 +1,258 @@
-/* =========================
-   MAIN CONTAINER
-========================= */
+:root {
+  --primary-blue: #1d4ed8;
+  --bg-gray: #f8fafc;
+  --border-color: #e2e8f0;
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+}
+
 .courses-container {
-  padding: 24px;
-  color: #ffffff;
+  padding: 2rem 4rem;
+  background-color: var(--bg-gray);
+  min-height: 100vh;
+  font-family: sans-serif;
 }
 
-/* =========================
-   HEADER
-========================= */
-.courses-header h1 {
-  font-size: 28px;
-  margin-bottom: 5px;
-}
-
-.courses-header p {
-  color: #aaa;
-  margin-bottom: 20px;
-}
-
-/* =========================
-   CONTROLS (SEARCH + FILTER + SORT)
-========================= */
-.courses-controls {
+.header-section {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
 }
 
-/* SEARCH INPUT */
-.search-input {
-  flex: 1;
-  min-width: 220px;
-  padding: 10px 12px;
+.header-left h1 {
+  font-size: 1.8rem;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.header-left p {
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.create-btn {
+  background: var(--primary-blue);
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
   border-radius: 8px;
-  border: 1px solid #2a2a2a;
-  background: #1e1e1e;
-  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.toolbar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.search-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+}
+
+.search-wrapper input {
+  width: 100%;
+  padding: 0.7rem 0.7rem 0.7rem 2.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: white;
+}
+
+.filters {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1px solid var(--border-color);
+  padding: 0 10px;
+  border-radius: 8px;
+}
+
+.select-wrapper select {
+  border: none;
+  padding: 0.7rem 5px;
+  background: transparent;
   outline: none;
 }
 
-.search-input::placeholder {
-  color: #777;
-}
-
-.search-input:focus {
-  border-color: #3a86ff;
-}
-
-/* SELECT DROPDOWNS */
-.filter-select,
-.sort-select {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #2a2a2a;
-  background: #1e1e1e;
-  color: #fff;
-  cursor: pointer;
-}
-
-.filter-select:focus,
-.sort-select:focus {
-  border-color: #3a86ff;
-}
-
-/* =========================
-   COURSE SECTION
-========================= */
-.courses-section {
-  margin-top: 10px;
-}
-
-/* EMPTY STATE */
-.empty-state {
-  color: #888;
-  font-size: 14px;
-}
-
-/* =========================
-   GRID
-========================= */
 .course-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
 }
 
-/* =========================
-   CARD
-========================= */
 .course-card {
-  background: #1e1e1e;
+  background: white;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 18px;
-  border: 1px solid #2a2a2a;
-  transition: all 0.2s ease;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.live-border {
+  border-top: 4px solid #10b981;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.live-badge {
+  background: #ecfdf5;
+  color: #10b981;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 1.5rem;
+}
+
+.stat-box {
+  background: #f1f5f9;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
 }
 
-.course-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+.stat-value {
+  font-weight: 700;
+  font-size: 1.2rem;
 }
 
-/* =========================
-   COURSE INFO
-========================= */
-.course-info h3 {
-  font-size: 18px;
-  margin-bottom: 6px;
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
-.meta {
-  color: #aaa;
-  font-size: 13px;
-}
-
-.code {
-  margin-top: 6px;
-  font-size: 14px;
-}
-
-.code span {
-  font-weight: bold;
-  color: #4caf50;
-}
-
-/* =========================
-   ACTION BUTTONS
-========================= */
-.course-actions {
-  margin-top: 15px;
+.card-footer {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
 }
 
-/* BUTTON BASE */
-.btn {
-  padding: 6px 10px;
-  border: none;
+.btn-outline, .btn-primary, .btn-icon {
+  padding: 0.6rem;
   border-radius: 6px;
-  font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.9rem;
 }
 
-/* OPEN */
-.btn-open {
-  background: #3a86ff;
-  color: #fff;
+.btn-outline {
+  flex: 1;
+  background: white;
+  border: 1px solid var(--border-color);
 }
 
-.btn-open:hover {
-  background: #2f6fd6;
+.btn-primary {
+  flex: 1.5;
+  background: var(--primary-blue);
+  color: white;
+  border: none;
 }
 
-/* START */
-.btn-start {
-  background: #4caf50;
-  color: #fff;
-}
-
-.btn-start:hover {
-  background: #3d9442;
-}
-
-/* COPY */
-.btn-copy {
-  background: #333;
-  color: #ddd;
-}
-
-.btn-copy:hover {
-  background: #444;
+.btn-icon {
+  width: 40px;
+  background: white;
+  border: 1px solid var(--border-color);
 }
 
 /* =========================
-   LOADING TEXT
+   MODAL (ONLY ADDITION)
 ========================= */
-.courses-section p {
-  font-size: 14px;
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  width: 400px;
+  max-width: 90%;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Form inside modal */
+.modal-content form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-content input,
+.modal-content select {
+  padding: 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.modal-content button[type="submit"] {
+  background: var(--primary-blue);
+  color: white;
+  border: none;
+  padding: 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
 }
