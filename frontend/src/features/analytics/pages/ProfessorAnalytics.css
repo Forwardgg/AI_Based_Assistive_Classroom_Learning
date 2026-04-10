@@ -401,3 +401,18 @@
 @media (max-width: 640px) {
   .stats-grid { grid-template-columns: 1fr; }
 }
+.dropdown-controls {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dropdown-select {
+  flex: 1;
+  font-size: 0.75rem;
+  padding: 0.35rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  background: white;
+}
