@@ -33,7 +33,7 @@ const Navbar = () => {
   const links =
     user?.role === "professor"
       ? ["Dashboard", "Courses", "Analytics"]
-      : ["Dashboard", "My Courses", "Results"];
+      : ["Dashboard", "My Courses", "Analytics", "Results"];
 
   // =========================
   // INITIALS
@@ -52,7 +52,7 @@ const Navbar = () => {
     // Dashboard
     if (slug === "dashboard") return basePath;
 
-    // Professor Analytics
+    // Analytics (both roles)
     if (slug === "analytics") {
       return `${basePath}/analytics`;
     }

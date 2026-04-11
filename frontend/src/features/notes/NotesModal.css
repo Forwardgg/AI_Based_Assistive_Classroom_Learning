@@ -1,0 +1,134 @@
+/* Overlay */
+.notes-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* Modal Card */
+.notes-modal {
+  background: #ffffff;
+  color: #1a1a1a;
+  width: 800px;              /* 🔥 bigger */
+  max-width: 95%;
+  max-height: 85vh;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* Header */
+.notes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.notes-header h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Close Button */
+.close-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+}
+
+.close-btn:hover {
+  color: #000;
+}
+
+/* Content Area */
+.notes-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* Text display */
+.notes-text {
+  white-space: pre-wrap;
+  line-height: 1.7;
+  font-size: 15px;
+  color: #333;
+}
+
+/* Textarea (edit mode) */
+.notes-textarea {
+  width: 100%;
+  height: 350px;            /* 🔥 bigger edit area */
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 14px;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+}
+
+.notes-textarea:focus {
+  border-color: #4a90e2;
+}
+
+/* Footer actions */
+.notes-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 18px;
+}
+
+/* Button group */
+.notes-actions button {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: 0.2s ease;
+}
+
+/* Download button */
+.notes-actions button:first-child {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.notes-actions button:first-child:hover {
+  background: #e0e0e0;
+}
+
+/* Right side buttons */
+.notes-actions button:not(:first-child) {
+  background: #4a90e2;
+  color: white;
+}
+
+.notes-actions button:not(:first-child):hover {
+  background: #357bd8;
+}
+
+/* Cancel button (optional override if needed) */
+.notes-actions button:nth-child(3) {
+  background: #ccc;
+  color: #333;
+}
+
+.notes-actions button:nth-child(3):hover {
+  background: #b5b5b5;
+}

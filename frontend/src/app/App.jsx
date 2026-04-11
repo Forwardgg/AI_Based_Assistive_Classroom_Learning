@@ -14,13 +14,14 @@ import DashboardLayout from "../components/DashboardLayout";
 
 // COURSES
 import ProfessorCourses from "../features/courses/pages/ProfessorCourses";
-import StudentCourses from "../features/courses/pages/StudentCourses"; // ✅ NEW
+import StudentCourses from "../features/courses/pages/StudentCourses";
 import CourseDetails from "../features/courses/pages/CourseDetails";
 
 // ANALYTICS
 import ProfessorAnalytics from "../features/analytics/pages/ProfessorAnalytics";
 import SessionAnalytics from "../features/analytics/pages/SessionAnalytics";
 import StudentResults from "../features/analytics/pages/StudentResults";
+import StudentAnalytics from "../features/analytics/pages/StudentAnalytics";
 
 function PublicRoute({ children }) {
   const { token, user, loading } = useContext(AuthContext);
@@ -188,6 +189,17 @@ function App() {
     <PrivateRoute allowedRoles={['student']}>
       <DashboardLayout>
         <StudentResults />
+      </DashboardLayout>
+    </PrivateRoute>
+  }
+/>
+
+<Route
+  path="/dashboard/student/analytics"
+  element={
+    <PrivateRoute allowedRoles={['student']}>
+      <DashboardLayout>
+        <StudentAnalytics />
       </DashboardLayout>
     </PrivateRoute>
   }

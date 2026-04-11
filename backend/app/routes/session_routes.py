@@ -3,6 +3,7 @@
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from flask_socketio import join_room
+from sqlalchemy.exc import IntegrityError
 
 from app import db, socketio
 from app.models.session import Session
@@ -446,10 +447,102 @@ def generate_quiz(session_id):
 @jwt_required()
 def get_session_notes(session_id):
 
-    # Fetch lecture notes for session
     notes = LectureNotes.query.filter_by(session_id=session_id).first()
 
     if not notes:
-        return jsonify({"error": "No notes found"}), 404
+        return jsonify({"exists": False}), 200
 
-    return jsonify(notes.to_dict()), 200
+    return jsonify({
+        "exists": True,
+        "summary_text": notes.summary_text
+    }), 200
+
+@session_bp.route("/<int:session_id>/notes", methods=["POST"])
+@jwt_required()
+def generate_session_notes(session_id):
+
+    from sqlalchemy.exc import IntegrityError
+    from app.models.transcript import Transcript
+    from app.services.summary_service import clean_transcript, generate_summary
+
+    claims = get_jwt()
+    user_id = int(get_jwt_identity())
+
+    # Only professor
+    if claims.get("role") != "professor":
+        return jsonify({"message": "Unauthorized"}), 403
+
+    session = Session.query.get(session_id)
+    if not session:
+        return jsonify({"message": "Session not found"}), 404
+
+    # Ensure professor owns course
+    if session.course.professor_id != user_id:
+        return jsonify({"message": "Unauthorized"}), 403
+
+    # 🔥 Fetch transcripts for all partitions
+    transcripts = Transcript.query.join(
+        SessionPartition,
+        Transcript.partition_id == SessionPartition.id
+    ).filter(
+        SessionPartition.session_id == session_id
+    ).all()
+
+    if not transcripts:
+        return jsonify({"message": "No transcript available"}), 400
+
+    # Combine all transcript text
+    full_text = "\n".join([t.transcript_text for t in transcripts])
+
+    # 🔥 AI processing (clean + summarize)
+    cleaned = clean_transcript(full_text)
+    summary = generate_summary(cleaned)
+
+    if not summary:
+        return jsonify({"message": "Failed to generate notes"}), 500
+
+    # Create notes
+    notes = LectureNotes(
+        session_id=session_id,
+        summary_text=summary
+    )
+
+    try:
+        db.session.add(notes)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"message": "Notes already generated"}), 400
+
+    return jsonify({"message": "Notes generated"}), 201
+
+@session_bp.route("/<int:session_id>/notes", methods=["PUT"])
+@jwt_required()
+def update_session_notes(session_id):
+
+    claims = get_jwt()
+    user_id = int(get_jwt_identity())
+
+    # Only professor
+    if claims.get("role") != "professor":
+        return jsonify({"message": "Unauthorized"}), 403
+
+    session = Session.query.get(session_id)
+    if not session:
+        return jsonify({"message": "Session not found"}), 404
+
+    # Ensure professor owns course
+    if session.course.professor_id != user_id:
+        return jsonify({"message": "Unauthorized"}), 403
+
+    notes = LectureNotes.query.filter_by(session_id=session_id).first()
+    if not notes:
+        return jsonify({"message": "Notes not found"}), 404
+
+    data = request.get_json() or {}
+
+    notes.summary_text = data.get("summary_text", notes.summary_text)
+
+    db.session.commit()
+
+    return jsonify({"message": "Notes updated"}), 200

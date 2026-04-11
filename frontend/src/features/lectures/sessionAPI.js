@@ -16,3 +16,12 @@ export const stopSession = (sessionId) =>
 
 export const getSession = (sessionId) =>
   api.get(`/sessions/${sessionId}`);
+
+export const generateNotes = (sessionId) =>
+  api.post(`/sessions/${sessionId}/notes`);
+
+export const getNotes = (sessionId) =>
+  api.get(`/sessions/${sessionId}/notes`);
+
+export const updateNotes = (sessionId, data) =>
+  api.put(`/sessions/${sessionId}/notes`, data);

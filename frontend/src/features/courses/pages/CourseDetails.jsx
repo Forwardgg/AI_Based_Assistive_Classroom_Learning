@@ -10,6 +10,12 @@ import { getCourses } from "../courseAPI";
 import api from "../../../services/api";
 import { AuthContext } from "../../auth/AuthContext";
 import ProfessorQuizView from "../../quiz/ProfessorQuizView";
+import NotesModal from "../../notes/NotesModal";
+import {
+  getNotes,
+  generateNotes,
+} from "../../lectures/sessionAPI";
+
 import "./CourseDetails.css";
 
 const CourseDetails = () => {
@@ -17,14 +23,22 @@ const CourseDetails = () => {
   const { user } = useContext(AuthContext);
 
   const isStudent = user?.role === "student";
+  const isProfessor = user?.role === "professor";
 
   const [course, setCourse] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [notes, setNotes] = useState(null);
   const [selectedPartition, setSelectedPartition] = useState(null);
   const [showQuiz, setShowQuiz] = useState(false);
+
+  // ✅ NOTES STATE
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [notesData, setNotesData] = useState(null);
+
+  // ✅ LOADING STATE
+  const [generatingNotesId, setGeneratingNotesId] = useState(null);
 
   // =========================
   // FETCH DATA
@@ -66,15 +80,50 @@ const CourseDetails = () => {
   // =========================
   const handleViewNotes = async (sessionId) => {
     try {
-      const res = await api.get(`/sessions/${sessionId}/notes`);
-      setNotes(res.data.summary_text);
-    } catch {
-      alert("No notes available yet");
+      const res = await getNotes(sessionId);
+
+      if (!res.data.exists) {
+        alert("No notes available yet");
+        return;
+      }
+
+      setNotesData(res.data);
+      setSelectedSessionId(sessionId);
+      setNotesOpen(true);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   // =========================
-  // DELETE COURSE (placeholder)
+  // GENERATE NOTES
+  // =========================
+  const handleGenerateNotes = async (sessionId) => {
+    try {
+      setGeneratingNotesId(sessionId);
+
+      await generateNotes(sessionId);
+
+      await handleViewNotes(sessionId);
+    } catch (err) {
+      const msg = err?.response?.data?.message;
+
+      if (msg === "No transcript available") {
+        alert("Session is empty");
+      } else if (msg === "Notes already generated") {
+        alert("Notes already generated");
+      } else {
+        alert("Failed to generate notes");
+      }
+
+      console.error(err);
+    } finally {
+      setGeneratingNotesId(null);
+    }
+  };
+
+  // =========================
+  // DELETE COURSE
   // =========================
   const handleDelete = () => {
     alert("Delete functionality not implemented yet");
@@ -120,10 +169,12 @@ const CourseDetails = () => {
                   </h2>
                   <span
                     className={`status-badge ${
-  ["active", "completed"].includes((session.status || "").toLowerCase())
-    ? (session.status || "").toLowerCase()
-    : "pending"
-}`}
+                      ["active", "completed"].includes(
+                        (session.status || "").toLowerCase()
+                      )
+                        ? (session.status || "").toLowerCase()
+                        : "pending"
+                    }`}
                   >
                     {session.status}
                   </span>
@@ -136,12 +187,27 @@ const CourseDetails = () => {
 
               {/* ACTIONS */}
               <div className="action-buttons">
+                {/* VIEW NOTES */}
                 <button
                   className="secondary-btn"
                   onClick={() => handleViewNotes(session.id)}
                 >
                   <FileText size={16} /> View Notes
                 </button>
+
+                {/* GENERATE NOTES */}
+                {isProfessor && (
+                  <button
+                    className="secondary-btn"
+                    onClick={() => handleGenerateNotes(session.id)}
+                    disabled={generatingNotesId === session.id}
+                  >
+                    <FileText size={16} />
+                    {generatingNotesId === session.id
+                      ? "Generating..."
+                      : "Generate Notes"}
+                  </button>
+                )}
 
                 {!isStudent && (
                   <button className="secondary-btn">
@@ -180,15 +246,13 @@ const CourseDetails = () => {
       </div>
 
       {/* NOTES MODAL */}
-      {notes && (
-        <div className="notes-modal">
-          <div className="notes-content">
-            <h3>Lecture Notes</h3>
-            <pre>{notes}</pre>
-            <button onClick={() => setNotes(null)}>Close</button>
-          </div>
-        </div>
-      )}
+      <NotesModal
+        open={notesOpen}
+        onClose={() => setNotesOpen(false)}
+        notes={notesData}
+        sessionId={selectedSessionId}
+        isProfessor={isProfessor}
+      />
 
       {/* QUIZ VIEW */}
       {showQuiz && (

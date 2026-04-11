@@ -246,3 +246,158 @@ def get_professor_session_analytics(session_id):
             "not_participated": max(total_students - students_participated, 0)
         }
     })
+
+# =====================================================
+# 🔹 STUDENT SESSIONS (FOR DROPDOWN)
+# =====================================================
+@analytics_bp.route("/student/sessions", methods=["GET"])
+@jwt_required()
+def get_student_sessions():
+
+    identity = get_jwt_identity()
+    user = resolve_user(identity)
+
+    if not user or user.role != "student":
+        return jsonify({"error": "Access denied"}), 403
+
+    # Get sessions where student is enrolled
+    sessions = (
+        db.session.query(Session)
+        .join(Course)
+        .join(Enrollment, Enrollment.course_id == Course.id)
+        .filter(Enrollment.student_id == user.id)
+        .order_by(Session.created_at.desc())
+        .all()
+    )
+
+    return jsonify([
+        {
+            "id": s.id,
+            "course_name": s.course.course_name,
+            "date": s.created_at.isoformat()
+        }
+        for s in sessions
+    ])
+
+# =====================================================
+# 🔹 STUDENT SESSION ANALYTICS
+# =====================================================
+@analytics_bp.route("/student/session/<int:session_id>", methods=["GET"])
+@jwt_required()
+def get_student_session_analytics(session_id):
+
+    identity = get_jwt_identity()
+    user = resolve_user(identity)
+
+    if not user or user.role != "student":
+        return jsonify({"error": "Access denied"}), 403
+
+    session = Session.query.get(session_id)
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+
+    # =========================
+    # FETCH STUDENT ANSWERS
+    # =========================
+    rows = db.session.query(
+        SessionPartition.partition_index,
+        Question.id.label("question_id"),
+        Question.question_text,
+        Question.correct_option,
+        StudentAnswer.selected_option,
+        StudentAnswer.is_correct
+    ).join(
+        Quiz, Quiz.partition_id == SessionPartition.id
+    ).join(
+        Question, Question.quiz_id == Quiz.id
+    ).join(
+        StudentAnswer, StudentAnswer.question_id == Question.id
+    ).filter(
+        SessionPartition.session_id == session_id,
+        StudentAnswer.student_id == user.id
+    ).all()
+
+    # =========================
+    # BASIC STATS
+    # =========================
+    total = len(rows)
+    correct = sum(1 for r in rows if r.is_correct)
+
+    accuracy = (correct / total * 100) if total else 0
+
+    # =========================
+    # PARTITION TREND
+    # =========================
+    partitions = defaultdict(lambda: {"total": 0, "correct": 0})
+
+    for r in rows:
+        partitions[r.partition_index]["total"] += 1
+        if r.is_correct:
+            partitions[r.partition_index]["correct"] += 1
+
+    trend = []
+    weak_topics = []
+
+    for p, data in sorted(partitions.items()):
+        acc = (data["correct"] / data["total"] * 100) if data["total"] else 0
+
+        trend.append({
+            "partition": p,
+            "accuracy": round(acc, 2)
+        })
+
+        status = "strong" if acc >= 70 else "medium" if acc >= 40 else "weak"
+
+        weak_topics.append({
+            "topic": f"Partition {p}",
+            "partition": p,
+            "accuracy": round(acc, 2),
+            "status": status
+        })
+
+    # =========================
+    # QUESTIONS (PERSONAL VIEW)
+    # =========================
+    questions = []
+
+    for i, r in enumerate(rows):
+        questions.append({
+            "question": r.question_text,
+            "your_answer": r.selected_option,
+            "correct_answer": r.correct_option,
+            "is_correct": r.is_correct
+        })
+
+    # =========================
+    # CLASS AVERAGE (OPTIONAL BUT POWERFUL)
+    # =========================
+    all_answers = db.session.query(StudentAnswer)\
+        .join(Question)\
+        .join(Quiz)\
+        .join(SessionPartition)\
+        .filter(SessionPartition.session_id == session_id)\
+        .all()
+
+    total_all = len(all_answers)
+    correct_all = sum(1 for a in all_answers if a.is_correct)
+
+    class_avg = (correct_all / total_all * 100) if total_all else 0
+
+    # =========================
+    # RESPONSE
+    # =========================
+    return jsonify({
+        "header": {
+            "course_name": session.course.course_name,
+            "session_date": session.created_at.isoformat()
+        },
+        "stats": {
+            "accuracy": round(accuracy, 2),
+            "correct": correct,
+            "total": total,
+            "class_avg": round(class_avg, 2)
+        },
+        "trend": trend,
+        "weak_topics": weak_topics,
+        "questions": questions
+    })
