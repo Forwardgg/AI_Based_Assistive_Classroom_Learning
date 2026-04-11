@@ -401,3 +401,84 @@ def get_student_session_analytics(session_id):
         "weak_topics": weak_topics,
         "questions": questions
     })
+
+@analytics_bp.route("/student/me", methods=["GET"])
+@jwt_required()
+def get_student_overall_analytics():
+
+    identity = get_jwt_identity()
+    user = resolve_user(identity)
+
+    if not user or user.role != "student":
+        return jsonify({"error": "Access denied"}), 403
+
+    # =========================
+    # ALL ANSWERS BY STUDENT
+    # =========================
+    rows = db.session.query(
+        Session.id.label("session_id"),
+        Course.course_name,
+        Session.created_at,
+        Question.id.label("question_id"),
+        StudentAnswer.is_correct
+    ).join(
+        Question, Question.id == StudentAnswer.question_id
+    ).join(
+        Quiz, Quiz.id == Question.quiz_id
+    ).join(
+        SessionPartition, SessionPartition.id == Quiz.partition_id
+    ).join(
+        Session, Session.id == SessionPartition.session_id
+    ).join(
+        Course, Course.id == Session.course_id
+    ).filter(
+        StudentAnswer.student_id == user.id
+    ).all()
+
+    # =========================
+    # AGGREGATE
+    # =========================
+    total = len(rows)
+    correct = sum(1 for r in rows if r.is_correct)
+
+    overall_accuracy = (correct / total * 100) if total else 0
+
+    # =========================
+    # SESSION-WISE RESULTS
+    # =========================
+    session_map = {}
+
+    for r in rows:
+        sid = r.session_id
+
+        if sid not in session_map:
+            session_map[sid] = {
+                "course_name": r.course_name,
+                "date": r.created_at,
+                "score": 0,
+                "total": 0
+            }
+
+        session_map[sid]["total"] += 1
+        if r.is_correct:
+            session_map[sid]["score"] += 1
+
+    sessions = list(session_map.values())
+
+    # sort latest first
+    sessions.sort(key=lambda x: x["date"], reverse=True)
+
+    # =========================
+    # PARTICIPATION
+    # =========================
+    total_sessions = len(set(r.session_id for r in rows))
+    participation_rate = 100 if total_sessions > 0 else 0
+
+    # =========================
+    # RESPONSE
+    # =========================
+    return jsonify({
+        "overall_accuracy": round(overall_accuracy, 2),
+        "participation_rate": participation_rate,
+        "sessions": sessions
+    })

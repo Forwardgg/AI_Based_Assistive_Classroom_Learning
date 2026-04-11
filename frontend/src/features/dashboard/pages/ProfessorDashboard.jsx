@@ -237,8 +237,8 @@ const ProfessorDashboard = () => {
       onCreateSession={handleCreateAndStart}
       onCloseModal={() => setShowModal(false)}
       
-      onOpenCourseModal={() => setShowCourseModal(true)} // ✅ NEW
-      onCloseCourseModal={() => setShowCourseModal(false)} // ✅ NEW
+      onOpenCourseModal={() => setShowCourseModal(true)}
+      onCloseCourseModal={() => setShowCourseModal(false)}
       
       onFetchCourses={fetchCourses}
     />
