@@ -235,3 +235,8 @@
     color: #6b7280;
   }
 }
+.nav-left,
+.nav-left:hover {
+  text-decoration: none;
+  color: inherit;
+}

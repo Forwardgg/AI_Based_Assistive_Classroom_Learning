@@ -1,8 +1,7 @@
 import { useContext } from "react";
 import { Navigate } from "react-router-dom";
-import { AuthContext } from "../features/auth/AuthContext";
+import { AuthContext, AuthProvider } from "../features/auth/AuthContext";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "../features/auth/AuthContext";
 import PrivateRoute from "../components/PrivateRoute";
 
 import Login from "../features/auth/pages/Login";
@@ -12,28 +11,25 @@ import ProfessorDashboard from "../features/dashboard/pages/ProfessorDashboard";
 import StudentDashboard from "../features/dashboard/pages/StudentDashboard";
 import DashboardLayout from "../components/DashboardLayout";
 
-// COURSES
+// Courses
 import ProfessorCourses from "../features/courses/pages/ProfessorCourses";
 import StudentCourses from "../features/courses/pages/StudentCourses";
 import CourseDetails from "../features/courses/pages/CourseDetails";
 
-// ANALYTICS
+// Analytics
 import ProfessorAnalytics from "../features/analytics/pages/ProfessorAnalytics";
-import SessionAnalytics from "../features/analytics/pages/SessionAnalytics";
-import StudentResults from "../features/analytics/pages/StudentResults";
 import StudentAnalytics from "../features/analytics/pages/StudentAnalytics";
 
+// Redirect logged-in users away from public pages
 function PublicRoute({ children }) {
   const { token, user, loading } = useContext(AuthContext);
 
   if (loading) return null;
 
   if (token) {
-    if (user?.role === "professor") {
-      return <Navigate to="/dashboard/professor" replace />;
-    } else {
-      return <Navigate to="/dashboard/student" replace />;
-    }
+    return user?.role === "professor"
+      ? <Navigate to="/dashboard/professor" replace />
+      : <Navigate to="/dashboard/student" replace />;
   }
 
   return children;
@@ -45,165 +41,98 @@ function App() {
       <Router>
         <Routes>
 
-          {/* =========================
-              PUBLIC ROUTES
-          ========================= */}
-          <Route
-            path="/"
-            element={
-              <PublicRoute>
-                <Login />
-              </PublicRoute>
-            }
-          />
+          {/* Public routes */}
+          <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/signup" element={<Signup />} />
 
-          {/* =========================
-              PROFESSOR DASHBOARD
-          ========================= */}
+          {/* Professor dashboard */}
           <Route
             path="/dashboard/professor"
             element={
               <PrivateRoute allowedRoles={["professor"]}>
-                <DashboardLayout>
-                  <ProfessorDashboard />
-                </DashboardLayout>
+                <DashboardLayout><ProfessorDashboard /></DashboardLayout>
               </PrivateRoute>
             }
           />
 
-          {/* =========================
-              STUDENT DASHBOARD
-          ========================= */}
+          {/* Student dashboard */}
           <Route
             path="/dashboard/student"
             element={
               <PrivateRoute allowedRoles={["student"]}>
-                <DashboardLayout>
-                  <StudentDashboard />
-                </DashboardLayout>
+                <DashboardLayout><StudentDashboard /></DashboardLayout>
               </PrivateRoute>
             }
           />
 
-          {/* =========================
-              PROFESSOR COURSES
-          ========================= */}
+          {/* Professor courses */}
           <Route
             path="/dashboard/professor/courses"
             element={
               <PrivateRoute allowedRoles={["professor"]}>
-                <DashboardLayout>
-                  <ProfessorCourses />
-                </DashboardLayout>
+                <DashboardLayout><ProfessorCourses /></DashboardLayout>
               </PrivateRoute>
             }
           />
 
-          {/* =========================
-              STUDENT COURSES (NEW)
-          ========================= */}
+          {/* Student courses */}
           <Route
             path="/dashboard/student/courses"
             element={
               <PrivateRoute allowedRoles={["student"]}>
-                <DashboardLayout>
-                  <StudentCourses />
-                </DashboardLayout>
+                <DashboardLayout><StudentCourses /></DashboardLayout>
               </PrivateRoute>
             }
           />
 
-          {/* =========================
-              COURSE DETAILS (PROFESSOR)
-          ========================= */}
+          {/* Course details (professor) */}
           <Route
             path="/dashboard/professor/courses/:courseId"
             element={
               <PrivateRoute allowedRoles={["professor"]}>
-                <DashboardLayout>
-                  <CourseDetails />
-                </DashboardLayout>
+                <DashboardLayout><CourseDetails /></DashboardLayout>
               </PrivateRoute>
             }
           />
 
-          {/* =========================
-              COURSE DETAILS (STUDENT) ✅ NEW
-          ========================= */}
+          {/* Course details (student) */}
           <Route
             path="/dashboard/student/courses/:courseId"
             element={
               <PrivateRoute allowedRoles={["student"]}>
-                <DashboardLayout>
-                  <CourseDetails />
-                </DashboardLayout>
+                <DashboardLayout><CourseDetails /></DashboardLayout>
               </PrivateRoute>
             }
           />
 
-          {/* =========================
-              ANALYTICS ROOT
-          ========================= */}
+          {/* Professor analytics */}
           <Route
             path="/dashboard/professor/analytics"
             element={
               <PrivateRoute allowedRoles={["professor"]}>
-                <DashboardLayout>
-                  <ProfessorAnalytics />
-                </DashboardLayout>
+                <DashboardLayout><ProfessorAnalytics /></DashboardLayout>
               </PrivateRoute>
             }
           />
 
-          {/* =========================
-              ANALYTICS BY COURSE
-          ========================= */}
           <Route
             path="/dashboard/professor/analytics/:courseId"
             element={
               <PrivateRoute allowedRoles={["professor"]}>
-                <DashboardLayout>
-                  <ProfessorAnalytics />
-                </DashboardLayout>
+                <DashboardLayout><ProfessorAnalytics /></DashboardLayout>
               </PrivateRoute>
             }
           />
 
-          {/* =========================
-              SESSION ANALYTICS
-          ========================= */}
+          {/* Student analytics */}
           <Route
-            path="/dashboard/professor/analytics/session/:sessionId"
+            path="/dashboard/student/analytics"
             element={
-              <PrivateRoute allowedRoles={["professor"]}>
-                <DashboardLayout>
-                  <SessionAnalytics />
-                </DashboardLayout>
+              <PrivateRoute allowedRoles={["student"]}>
+                <DashboardLayout><StudentAnalytics /></DashboardLayout>
               </PrivateRoute>
             }
           />
-          <Route
-  path="/dashboard/student/results"
-  element={
-    <PrivateRoute allowedRoles={['student']}>
-      <DashboardLayout>
-        <StudentResults />
-      </DashboardLayout>
-    </PrivateRoute>
-  }
-/>
-
-<Route
-  path="/dashboard/student/analytics"
-  element={
-    <PrivateRoute allowedRoles={['student']}>
-      <DashboardLayout>
-        <StudentAnalytics />
-      </DashboardLayout>
-    </PrivateRoute>
-  }
-/>
 
         </Routes>
       </Router>

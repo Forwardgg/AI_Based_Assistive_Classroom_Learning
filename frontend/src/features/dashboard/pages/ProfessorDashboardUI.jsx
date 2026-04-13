@@ -1,43 +1,77 @@
 // frontend/src/features/dashboard/pages/ProfessorDashboardUI.jsx
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   BookOpen, Users, Clock, Brain, Plus, FileText, BarChart3,
   Pause, Play, Square, Search, X, Library
 } from "lucide-react";
+
+import { useNavigate } from "react-router-dom";
 
 import CreateCourse from "../../courses/pages/CreateCourse";
 import SessionModal from "../../lectures/pages/SessionModal";
 import ProfessorQuizView from "../../quiz/ProfessorQuizView";
 import "./ProfessorDashboardUI.css";
 
-const ProfessorDashboardUI = ({
-  courses, loading, activeCourse, sessionStatus, currentPartition, timeLeft,
-  showModal, showCourseModal, selectedCourse, showQuizPrompt, lastPartitionId, 
-  quizGenerated, loadingQuiz, onStartSession, onPause, onResume, onStop, 
-  onGenerateQuiz, onCreateSession, onCloseModal, onOpenCourseModal, 
-  onCloseCourseModal, onFetchCourses, onCloseQuiz 
-}) => {
+const ProfessorDashboardUI = (props) => {
+  const {
+    courses, loading, activeCourse, sessionStatus, currentPartition, timeLeft,
+    showModal, showCourseModal, selectedCourse, showQuizPrompt, lastPartitionId,
+    quizGenerated, loadingQuiz, onStartSession, onPause, onResume, onStop,
+    onGenerateQuiz, onCreateSession, onCloseModal, onOpenCourseModal,
+    onCloseCourseModal, onFetchCourses, onCloseQuiz
+  } = props;
 
   const [searchTerm, setSearchTerm] = useState("");
+  const navigate = useNavigate();
 
+  // =========================
+  // FILTER COURSES
+  // =========================
   const filteredCourses = courses.filter(course =>
     course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     course.class_code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const recentSessions = [
-    { id: 1, name: "Data Structures – Lecture 12", time: "Today, 10:00 AM", duration: "50 min", students: 42, status: "Active" },
-    { id: 2, name: "Algorithms – Lecture 8", time: "Yesterday, 2:00 PM", duration: "45 min", students: 38, status: "Completed" },
-    { id: 3, name: "Data Structures – Lecture 11", time: "Apr 6, 10:00 AM", duration: "50 min", students: 40, status: "Completed" },
-    { id: 4, name: "Algorithms – Lecture 7", time: "Apr 5, 2:00 PM", duration: "45 min", students: 35, status: "Completed" },
-  ];
+  // =========================
+  // STATS (REAL DATA)
+  // =========================
+  const stats = useMemo(() => {
+    const totalSessions = courses.reduce((sum, c) => sum + (c.sessions_count || 0), 0);
+    const totalStudents = courses.reduce((sum, c) => sum + (c.students_count || 0), 0);
+
+    return {
+      totalSessions,
+      totalStudents
+    };
+  }, [courses]);
+
+  // =========================
+  // RECENT SESSIONS (DERIVED)
+  // =========================
+  const recentSessions = useMemo(() => {
+    const sessions = [];
+
+    courses.forEach(course => {
+      if (course.last_session) {
+        sessions.push({
+          id: course.id,
+          name: course.course_name,
+          time: course.last_session,
+          students: course.students_count || 0,
+          status: course.live ? "Active" : "Completed"
+        });
+      }
+    });
+
+    return sessions.slice(0, 5);
+  }, [courses]);
 
   return (
-    <div className="professor-dashboard-ui-root"> {/* THE FIREWALL WRAPPER */}
+    <div className="professor-dashboard-ui-root">
       <div className="dashboard-container">
         <main className="main-content">
 
-          {/* --- LIVE SESSION BAR --- */}
+          {/* LIVE BAR */}
           {(sessionStatus === "active" || sessionStatus === "paused") && (
             <div className={`session-control-bar ${sessionStatus}`}>
               <div className="session-bar-info">
@@ -65,24 +99,24 @@ const ProfessorDashboardUI = ({
             </div>
           )}
 
-          {/* Greeting Section */}
+          {/* HEADER */}
           <header className="greeting">
             <h1>Good morning, Professor</h1>
             <p>Here's an overview of your lecture activity.</p>
           </header>
 
-          {/* Stats Grid */}
+          {/* STATS */}
           <div className="stats-row">
-            <StatCard title="Total Sessions" value="24" label="This semester" Icon={BookOpen} />
-            <StatCard title="Active Students" value="127" label="Across courses" Icon={Users} />
-            <StatCard title="Avg Duration" value="48m" label="Per session" Icon={Clock} />
-            <StatCard title="Quiz Accuracy" value="73%" label="Class avg" Icon={Brain} />
+            <StatCard title="Total Sessions" value={stats.totalSessions} label="Across courses" Icon={BookOpen} />
+            <StatCard title="Active Students" value={stats.totalStudents} label="Across courses" Icon={Users} />
+            <StatCard title="Courses" value={courses.length} label="You teach" Icon={Library} />
+            <StatCard title="Live Sessions" value={courses.filter(c => c.live).length} label="Right now" Icon={Brain} />
           </div>
 
           <div className="dashboard-layout-stack">
             <div className="dual-grid-row">
 
-              {/* MAIN COLUMN: YOUR COURSES */}
+              {/* COURSES */}
               <div className="content-card flex-column list-container">
                 <div className="list-header">
                   <h2>Your Courses</h2>
@@ -128,85 +162,45 @@ const ProfessorDashboardUI = ({
                 </div>
               </div>
 
-              {/* SIDE COLUMN: QUICK ACTIONS */}
+              {/* ACTIONS */}
               <aside className="content-card flex-column">
                 <h2>Quick Actions</h2>
                 <div className="actions-grid-compact">
-                  <ActionButton 
-                    icon={<Plus size={18} />} 
-                    title="Create Course" 
-                    desc="Add new" 
-                    onClick={onOpenCourseModal} 
-                  />
-                  <ActionButton 
-                    icon={<FileText size={18} />} 
-                    title="Notes" 
-                    desc="PDFs" 
-                  />
-                  <ActionButton 
-                    icon={<Library size={18} />} 
-                    title="Quiz Library" 
-                    desc="AI & Custom" 
-                  />
-                  <ActionButton 
-                    icon={<BarChart3 size={18} />} 
-                    title="Analytics" 
-                    desc="Insights" 
-                  />
+                  <ActionButton icon={<Plus size={18} />} title="Create Course" desc="Add new" onClick={onOpenCourseModal} />
+                  <ActionButton icon={<FileText size={18} />} title="Notes" desc="PDFs" onClick={() => navigate("/dashboard/professor/courses")} />
+                  <ActionButton icon={<Library size={18} />} title="Quiz" desc="AI & Custom" onClick={() => navigate("/dashboard/professor/courses")} />
+                  <ActionButton icon={<BarChart3 size={18} />} title="Analytics" desc="Insights" onClick={() => navigate("/dashboard/professor/analytics")} />
                 </div>
               </aside>
             </div>
 
-            {/* RECENT SESSIONS LIST */}
+            {/* RECENT SESSIONS */}
             <div className="content-card full-width-sessions">
               <h2>Recent Sessions</h2>
               <div className="recent-list-horizontal">
-                {recentSessions.map((s) => (
-                  <div key={s.id} className="recent-row">
-                    <div className="recent-info">
-                      <h3>{s.name}</h3>
-                      <p>{s.time}</p>
+                {recentSessions.length === 0 ? (
+                  <p>No recent sessions</p>
+                ) : (
+                  recentSessions.map((s) => (
+                    <div key={s.id} className="recent-row">
+                      <div className="recent-info">
+                        <h3>{s.name}</h3>
+                        <p>{s.time}</p>
+                      </div>
+                      <div className="recent-meta">
+                        <span><Users size={12}/> {s.students}</span>
+                        <span className={`status-badge ${s.status.toLowerCase()}`}>
+                          {s.status}
+                        </span>
+                      </div>
                     </div>
-                    <div className="recent-meta">
-                      <span><Clock size={12}/> {s.duration}</span>
-                      <span><Users size={12}/> {s.students}</span>
-                      <span className={`status-badge ${s.status.toLowerCase()}`}>
-                        {s.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
 
-          {/* Modals remain same as they are often globally positioned */}
-          {showQuizPrompt && (
-            <div className="quiz-popup-bar">
-              <div className="quiz-popup-content">
-                <span>Partition complete</span>
-                {loadingQuiz && <span>Generating quiz...</span>}
-                {!quizGenerated && !loadingQuiz && (
-                  <button className="quiz-btn" onClick={onGenerateQuiz}>
-                    Generate Quiz
-                  </button>
-                )}
-                {quizGenerated && <span className="quiz-ready">Quiz Ready</span>}
-                <button className="quiz-btn secondary" onClick={onResume}>
-                  Resume
-                </button>
-              </div>
-              {quizGenerated && (
-                <div className="quiz-view-wrapper">
-                  <ProfessorQuizView
-                    partitionId={lastPartitionId}
-                    onClose={onCloseQuiz}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
+          {/* MODALS (UNCHANGED) */}
           {showModal && (
             <SessionModal
               courseId={selectedCourse}

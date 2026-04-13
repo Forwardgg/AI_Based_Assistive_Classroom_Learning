@@ -4,6 +4,7 @@ import {
   FileText,
   BarChart2,
   Copy,
+  Check,
 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { getCourses } from "../courseAPI";
@@ -31,6 +32,9 @@ const CourseDetails = () => {
 
   const [selectedPartition, setSelectedPartition] = useState(null);
   const [showQuiz, setShowQuiz] = useState(false);
+
+  // ✅ COPY STATE
+  const [copied, setCopied] = useState(false);
 
   // ✅ NOTES STATE
   const [notesOpen, setNotesOpen] = useState(false);
@@ -70,9 +74,19 @@ const CourseDetails = () => {
   // =========================
   // COPY CODE
   // =========================
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (!course) return;
-    navigator.clipboard.writeText(course.class_code);
+
+    try {
+      await navigator.clipboard.writeText(course.class_code);
+      setCopied(true);
+
+      setTimeout(() => {
+        setCopied(false);
+      }, 1500);
+    } catch (err) {
+      console.error("Copy failed", err);
+    }
   };
 
   // =========================
@@ -144,7 +158,17 @@ const CourseDetails = () => {
         <div className="course-id-row">
           <span className="course-badge">
             {course.class_code}
-            <Copy size={14} className="icon-copy" onClick={handleCopy} />
+
+            {/* ✅ COPY / TICK ICON */}
+            {copied ? (
+              <Check size={14} className="icon-copy" />
+            ) : (
+              <Copy
+                size={14}
+                className="icon-copy"
+                onClick={handleCopy}
+              />
+            )}
           </span>
         </div>
 
@@ -187,7 +211,6 @@ const CourseDetails = () => {
 
               {/* ACTIONS */}
               <div className="action-buttons">
-                {/* VIEW NOTES */}
                 <button
                   className="secondary-btn"
                   onClick={() => handleViewNotes(session.id)}
@@ -195,7 +218,6 @@ const CourseDetails = () => {
                   <FileText size={16} /> View Notes
                 </button>
 
-                {/* GENERATE NOTES */}
                 {isProfessor && (
                   <button
                     className="secondary-btn"

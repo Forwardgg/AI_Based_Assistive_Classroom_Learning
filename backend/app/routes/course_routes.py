@@ -111,23 +111,80 @@ def join_course():
 @course_bp.route("", methods=["GET"])
 @jwt_required()
 def get_courses():
+    from sqlalchemy import func
+
     # Get current user from JWT
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
 
-    # Validate user existence
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # Professors see courses they created
+    # =========================
+    # PROFESSOR VIEW (WITH STATS)
+    # =========================
     if user.role == "professor":
-        courses = Course.query.filter_by(professor_id=user_id).all()
+        courses = (
+            db.session.query(
+                Course,
+                func.count(func.distinct(Enrollment.student_id)).label("students_count"),
+                func.count(func.distinct(Session.id)).label("sessions_count"),
+                func.max(Session.created_at).label("last_session"),
+                func.bool_or(Session.status == "active").label("live"),
+            )
+            .outerjoin(Enrollment, Enrollment.course_id == Course.id)
+            .outerjoin(Session, Session.course_id == Course.id)
+            .filter(Course.professor_id == user_id)
+            .group_by(Course.id)
+            .all()
+        )
+
+        result = []
+
+        for c, students_count, sessions_count, last_session, live in courses:
+            data = c.to_dict()
+
+            data["students_count"] = students_count or 0
+            data["sessions_count"] = sessions_count or 0
+            data["last_session"] = (
+                last_session.strftime("%d %b") if last_session else None
+            )
+            data["live"] = bool(live)
+
+            result.append(data)
+
+        return jsonify(result), 200
+
+    # =========================
+    # STUDENT VIEW (KEEP SIMPLE)
+    # =========================
     else:
-        # Students see courses they are enrolled in
         enrollments = Enrollment.query.filter_by(student_id=user_id).all()
         courses = [e.course for e in enrollments]
 
-    return jsonify([c.to_dict() for c in courses]), 200
+        result = []
+        for c in courses:
+            data = c.to_dict()
+
+            # optional: also include stats for students
+            students_count = Enrollment.query.filter_by(course_id=c.id).count()
+            sessions_count = Session.query.filter_by(course_id=c.id).count()
+            last_session = (
+                Session.query.filter_by(course_id=c.id)
+                .order_by(Session.created_at.desc())
+                .first()
+            )
+
+            data["students_count"] = students_count
+            data["sessions_count"] = sessions_count
+            data["last_session"] = (
+                last_session.created_at.strftime("%d %b")
+                if last_session else None
+            )
+
+            result.append(data)
+
+        return jsonify(result), 200
 
 
 @course_bp.route("/<int:course_id>/sessions", methods=["GET"])

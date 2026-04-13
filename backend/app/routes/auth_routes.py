@@ -26,7 +26,8 @@ def login():
         identity=str(user.id),
         additional_claims={
             "role": user.role,
-            "email": user.email
+            "email": user.email,
+            "name": user.name
         }
     )
 

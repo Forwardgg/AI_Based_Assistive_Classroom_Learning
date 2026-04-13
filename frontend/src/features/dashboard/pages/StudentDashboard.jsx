@@ -75,40 +75,51 @@ const StudentDashboard = () => {
   // STATIC CHART DATA
   // =========================
   const lineData = {
-    labels: ['Mar 12', 'Mar 19', 'Mar 26', 'Apr 2', 'Apr 5', 'Apr 8', 'Apr 11'],
-    datasets: [{
-      label: 'Performance',
-      data: [62, 68, 58, 74, 71, 80, 76],
-      borderColor: '#2563eb',
-      backgroundColor: 'rgba(37, 99, 235, 0.05)',
-      fill: true,
-      tension: 0.4,
-      pointRadius: 4,
-      pointBackgroundColor: '#2563eb',
-    }]
-  };
+  labels: analytics?.trend?.map(t =>
+    new Date(t.date).toLocaleDateString()
+  ) || [],
+  datasets: [{
+    label: 'Performance',
+    data: analytics?.trend?.map(t => t.accuracy) || [],
+    borderColor: '#2563eb',
+    backgroundColor: 'rgba(37, 99, 235, 0.05)',
+    fill: true,
+    tension: 0.4,
+    pointRadius: 4,
+    pointBackgroundColor: '#2563eb',
+  }]
+};
 
   const barData = {
-    labels: ['Data Structures', 'Algorithms', 'DBMS', 'OS'],
-    datasets: [
-      {
-        label: 'You',
-        data: [80, 60, 100, 60],
-        backgroundColor: '#2563eb',
-        borderRadius: 4,
-      },
-      {
-        label: 'Class Avg',
-        data: [68, 65, 72, 58],
-        backgroundColor: '#e2e8f0',
-        borderRadius: 4,
-      }
-    ]
-  };
+  labels: analytics?.subject_performance?.map(t => t.topic) || [],
+  datasets: [
+    {
+      label: 'You',
+      data: analytics?.subject_performance?.map(t => t.you) || [],
+      backgroundColor: '#2563eb',
+      borderRadius: 4,
+    },
+    {
+      label: 'Class Avg',
+      data: analytics?.subject_performance?.map(t => t.class_avg) || [],
+      backgroundColor: '#e2e8f0',
+      borderRadius: 4,
+    }
+  ]
+};
 
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    // 1. Add padding to the top so 100% points aren't hugging the container edge
+    layout: {
+      padding: {
+        top: 15,
+        right: 10,
+        left: 5,
+        bottom: 5
+      }
+    },
     plugins: { 
       legend: { display: false },
       tooltip: {
@@ -128,7 +139,9 @@ const StudentDashboard = () => {
       x: { 
         grid: { display: false } 
       }
-    }
+    },
+    // 2. Disable clipping so the "top half" of the circles can render
+    clip: false 
   };
 
   // =========================
@@ -526,7 +539,11 @@ const StudentDashboard = () => {
               </div>
               <p className="chart-sub">Your progress over the last sessions</p>
               <div className="chart-wrapper">
-                <Line data={lineData} options={chartOptions} />
+                {analytics?.trend?.length ? (
+  <Line data={lineData} options={chartOptions} />
+) : (
+  <p className="empty-state">No data</p>
+)}
               </div>
             </div>
 
@@ -536,7 +553,11 @@ const StudentDashboard = () => {
               </div>
               <p className="chart-sub">Your average vs. the rest of the class</p>
               <div className="chart-wrapper">
-                <Bar data={barData} options={chartOptions} />
+                {analytics?.subject_performance?.length ? (
+  <Bar data={barData} options={chartOptions} />
+) : (
+  <p className="empty-state">No data</p>
+)}
               </div>
               <div className="custom-legend">
                 <span><i className="dot blue"></i> You</span>

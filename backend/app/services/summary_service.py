@@ -2,6 +2,21 @@ from app.services.ai_service import call_gemini
 
 
 # =========================
+# SMART PREP (LIGHT CONTROL)
+# =========================
+def prepare_text(text, max_chars=12000):
+    """
+    Allows large input but prevents extreme overload.
+    Keeps start + end for context if too large.
+    """
+    if len(text) <= max_chars:
+        return text
+
+    half = max_chars // 2
+    return text[:half] + "\n...\n" + text[-half:]
+
+
+# =========================
 # CLEAN TRANSCRIPT
 # =========================
 def clean_transcript(raw_text):
@@ -12,6 +27,10 @@ def clean_transcript(raw_text):
 
     if not raw_text or not raw_text.strip():
         return ""
+
+    prepared = prepare_text(raw_text)
+
+    print(f"[CLEAN INPUT SIZE] {len(prepared)} chars")
 
     prompt = f"""
 You are given a raw lecture transcript.
@@ -27,7 +46,7 @@ Clean it by:
 Return ONLY the cleaned transcript as plain text.
 
 Transcript:
-{raw_text}
+{prepared}
 """
 
     messages = [
@@ -54,6 +73,10 @@ def generate_summary(cleaned_text):
     if not cleaned_text or not cleaned_text.strip():
         return ""
 
+    prepared = prepare_text(cleaned_text)
+
+    print(f"[SUMMARY INPUT SIZE] {len(prepared)} chars")
+
     prompt = f"""
 Summarize the following lecture content into 5–7 clear bullet points.
 
@@ -63,7 +86,7 @@ Summarize the following lecture content into 5–7 clear bullet points.
 - No paragraphs
 
 Text:
-{cleaned_text}
+{prepared}
 """
 
     messages = [

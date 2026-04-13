@@ -1,5 +1,3 @@
-// frontend/src/features/auth/AuthContext.jsx
-
 import { createContext, useState, useEffect, useRef } from "react";
 import { jwtDecode } from "jwt-decode";
 
@@ -7,27 +5,21 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
-  const [user, setUser] = useState(null);   // 🔥 NEW
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const logoutTimer = useRef(null);
 
+  // Auto logout
   const scheduleAutoLogout = (jwt) => {
     const decoded = jwtDecode(jwt);
+    const timeLeft = decoded.exp * 1000 - Date.now();
 
-    const expirationTime = decoded.exp * 1000;
-    const currentTime = Date.now();
-    const timeLeft = expirationTime - currentTime;
+    if (timeLeft <= 0) return logout();
 
-    if (timeLeft <= 0) {
-      logout();
-      return;
-    }
-
-    logoutTimer.current = setTimeout(() => {
-      logout();
-    }, timeLeft);
+    logoutTimer.current = setTimeout(logout, timeLeft);
   };
 
+  // Init auth
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
 
@@ -37,7 +29,7 @@ export const AuthProvider = ({ children }) => {
 
         if (decoded.exp * 1000 > Date.now()) {
           setToken(storedToken);
-          setUser(decoded);   // 🔥 STORE USER
+          setUser(decoded); // keep simple
           scheduleAutoLogout(storedToken);
         } else {
           localStorage.removeItem("token");
@@ -50,29 +42,27 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
 
     return () => {
-      if (logoutTimer.current) {
-        clearTimeout(logoutTimer.current);
-      }
+      if (logoutTimer.current) clearTimeout(logoutTimer.current);
     };
   }, []);
 
+  // Login (SYNC again)
   const login = (jwt) => {
     const decoded = jwtDecode(jwt);
 
     localStorage.setItem("token", jwt);
     setToken(jwt);
-    setUser(decoded);
+    setUser(decoded); // simple
     scheduleAutoLogout(jwt);
   };
 
+  // Logout
   const logout = () => {
     localStorage.removeItem("token");
     setToken(null);
     setUser(null);
 
-    if (logoutTimer.current) {
-      clearTimeout(logoutTimer.current);
-    }
+    if (logoutTimer.current) clearTimeout(logoutTimer.current);
 
     window.location.href = "/";
   };

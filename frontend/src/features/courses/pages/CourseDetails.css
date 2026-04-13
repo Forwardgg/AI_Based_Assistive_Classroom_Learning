@@ -9,6 +9,13 @@
   --status-completed: #22c55e;
   --status-pending: #f59e0b;
   --danger-red: #ef4444;
+
+  /* ✅ NEW COLORS */
+  --yellow: #f59e0b;
+  --yellow-light: #fef3c7;
+
+  --green: #16a34a;
+  --green-light: #dcfce7;
 }
 
 body {
@@ -117,7 +124,7 @@ body {
 .status-badge.completed { background-color: var(--status-completed); }
 .status-badge.pending {
   background-color: var(--status-pending);
-  color: #1e293b; /* dark text instead of white */
+  color: #1e293b;
 }
 
 /* Buttons */
@@ -138,11 +145,21 @@ body {
   font-size: 14px;
   color: var(--text-main);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
 }
 
 .secondary-btn:hover {
   background: #f1f5f9;
+}
+
+.secondary-btn:first-child {
+  background: #eff6ff;
+  border-color: #bfdbfe; 
+  color: var(--primary-blue);
+}
+
+.secondary-btn:first-child:hover {
+  background: #dbeafe;
 }
 
 /* Part Rows */
@@ -178,14 +195,17 @@ body {
 .view-quiz-btn {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--green);
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 13px;
   cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
 .view-quiz-btn:hover {
-  color: var(--text-main);
+  color: #15803d;
+  text-decoration: underline;
 }

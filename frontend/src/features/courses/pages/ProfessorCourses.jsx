@@ -25,6 +25,9 @@ const ProfessorCourses = () => {
 
   const [showModal, setShowModal] = useState(false);
 
+  // ✅ NEW STATE FOR COPY FEEDBACK
+  const [copiedCode, setCopiedCode] = useState(null);
+
   const navigate = useNavigate();
 
   // =========================
@@ -82,14 +85,18 @@ const ProfessorCourses = () => {
   }, [courses, search, semesterFilter, sort]);
 
   // =========================
-  // COPY CODE
+  // COPY CODE (UPDATED)
   // =========================
   const handleCopy = (code) => {
     navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+
+    setTimeout(() => {
+      setCopiedCode(null);
+    }, 1500);
   };
 
   return (
-    /* FIREWALL WRAPPER START */
     <div className="professor-courses-root">
       <div className="courses-container">
         {/* HEADER */}
@@ -204,7 +211,13 @@ const ProfessorCourses = () => {
                     className="btn-primary"
                     onClick={() => handleCopy(course.class_code)}
                   >
-                    <Copy size={16} /> Copy Code
+                    {copiedCode === course.class_code ? (
+                      "✅ Copied!"
+                    ) : (
+                      <>
+                        <Copy size={16} /> Copy Code
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -234,7 +247,6 @@ const ProfessorCourses = () => {
         )}
       </div>
     </div>
-    /* FIREWALL WRAPPER END */
   );
 };
 

@@ -1,4 +1,3 @@
-// frontend/src/components/Navbar.jsx
 import { Link, useLocation } from "react-router-dom";
 import { useContext, useState } from "react";
 import { AuthContext } from "../features/auth/AuthContext";
@@ -9,63 +8,47 @@ const Navbar = () => {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // =========================
-  // BASE PATH
-  // =========================
+  // Base path by role
   const basePath =
     user?.role === "professor"
       ? "/dashboard/professor"
       : "/dashboard/student";
 
-  // =========================
-  // ACTIVE CHECK
-  // =========================
+  // Active route logic (exact for dashboard)
   const isActive = (path) => {
+    if (path === basePath) return location.pathname === path;
     return (
       location.pathname === path ||
       location.pathname.startsWith(path + "/")
     );
   };
 
-  // =========================
-  // NAV LINKS
-  // =========================
+  // Navigation links
   const links =
     user?.role === "professor"
       ? ["Dashboard", "Courses", "Analytics"]
-      : ["Dashboard", "My Courses", "Analytics", "Results"];
+      : ["Dashboard", "My Courses", "Analytics"];
 
-  // =========================
-  // INITIALS
-  // =========================
-  const getInitials = () => {
-    if (!user?.name) return "U";
-    return user.name.charAt(0).toUpperCase();
+  // Safe first name extraction
+  const getFirstName = () => {
+    if (!user?.name) return "";
+    return user.name.trim().split(" ")[0];
   };
 
-  // =========================
-  // ROUTE GENERATOR
-  // =========================
+  // Initials
+  const getInitials = () => {
+    if (!user?.name) return "U";
+    return user.name.trim().charAt(0).toUpperCase();
+  };
+
+  // Route generator
   const getPath = (link) => {
     const slug = link.toLowerCase().replace(" ", "-");
 
-    // Dashboard
     if (slug === "dashboard") return basePath;
-
-    // Analytics (both roles)
-    if (slug === "analytics") {
-      return `${basePath}/analytics`;
-    }
-
-    // Courses (Professor + Student)
-    if (slug === "courses" || slug === "my-courses") {
+    if (slug === "analytics") return `${basePath}/analytics`;
+    if (slug === "courses" || slug === "my-courses")
       return `${basePath}/courses`;
-    }
-
-    // Results (Student only)
-    if (slug === "results") {
-      return `${basePath}/results`;
-    }
 
     return `${basePath}/${slug}`;
   };
@@ -74,15 +57,13 @@ const Navbar = () => {
     <nav className="navbar">
       <div className="nav-container">
 
-        {/* LEFT */}
-        <div className="nav-left">
+        {/* Brand (click → dashboard) */}
+        <Link to={basePath} className="nav-left">
           <img src="/logo.png" alt="AIBACLS" className="nav-logo" />
           <span className="brand">AIBACLS</span>
-        </div>
+        </Link>
 
-        {/* =========================
-            DESKTOP NAV
-        ========================= */}
+        {/* Desktop nav */}
         <div className="nav-center desktop">
           {links.map((link) => {
             const path = getPath(link);
@@ -98,9 +79,7 @@ const Navbar = () => {
           })}
         </div>
 
-        {/* =========================
-            USER DROPDOWN
-        ========================= */}
+        {/* User dropdown */}
         <div className="nav-right desktop">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
@@ -108,7 +87,7 @@ const Navbar = () => {
           >
             <span className="avatar">{getInitials()}</span>
             <span className="user-name">
-              {user?.name?.split(" ")[0] || "User"}
+              {getFirstName() || "User"}
             </span>
             <span className="caret">{menuOpen ? "▲" : "▼"}</span>
           </button>
@@ -138,9 +117,7 @@ const Navbar = () => {
           )}
         </div>
 
-        {/* =========================
-            MOBILE MENU BUTTON
-        ========================= */}
+        {/* Mobile toggle */}
         <button
           className="mobile-menu"
           onClick={() => setMenuOpen(!menuOpen)}
@@ -149,9 +126,7 @@ const Navbar = () => {
         </button>
       </div>
 
-      {/* =========================
-          MOBILE NAV
-      ========================= */}
+      {/* Mobile nav */}
       {menuOpen && (
         <div className="mobile-nav">
           {links.map((link) => {

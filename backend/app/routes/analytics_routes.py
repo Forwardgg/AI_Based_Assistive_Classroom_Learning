@@ -436,7 +436,7 @@ def get_student_overall_analytics():
     ).all()
 
     # =========================
-    # AGGREGATE
+    # AGGREGATE OVERALL
     # =========================
     total = len(rows)
     correct = sum(1 for r in rows if r.is_correct)
@@ -454,7 +454,7 @@ def get_student_overall_analytics():
         if sid not in session_map:
             session_map[sid] = {
                 "course_name": r.course_name,
-                "date": r.created_at,
+                "date": r.created_at.isoformat(),  # IMPORTANT FIX
                 "score": 0,
                 "total": 0
             }
@@ -469,16 +469,105 @@ def get_student_overall_analytics():
     sessions.sort(key=lambda x: x["date"], reverse=True)
 
     # =========================
+    # TREND (FOR LINE CHART)
+    # =========================
+    trend = []
+
+    for s in sessions:
+        acc = (s["score"] / s["total"] * 100) if s["total"] else 0
+        trend.append({
+            "date": s["date"],
+            "accuracy": round(acc, 2)
+        })
+
+    # =========================
     # PARTICIPATION
     # =========================
     total_sessions = len(set(r.session_id for r in rows))
     participation_rate = 100 if total_sessions > 0 else 0
 
     # =========================
-    # RESPONSE
+    # GLOBAL CLASS AVERAGE
+    # =========================
+    all_answers = db.session.query(StudentAnswer).all()
+
+    total_all = len(all_answers)
+    correct_all = sum(1 for a in all_answers if a.is_correct)
+
+    class_avg = (correct_all / total_all * 100) if total_all else 0
+
+    # =========================
+    # SUBJECT PERFORMANCE (COURSE-WISE)
+    # =========================
+    subject_map = {}
+
+    # Student data
+    for r in rows:
+        key = r.course_name
+
+        if key not in subject_map:
+            subject_map[key] = {
+                "you_correct": 0,
+                "you_total": 0,
+                "class_correct": 0,
+                "class_total": 0
+            }
+
+        subject_map[key]["you_total"] += 1
+        if r.is_correct:
+            subject_map[key]["you_correct"] += 1
+
+    # Class data
+    all_rows = db.session.query(
+        Course.course_name,
+        StudentAnswer.is_correct
+    ).join(
+        Question, Question.id == StudentAnswer.question_id
+    ).join(
+        Quiz, Quiz.id == Question.quiz_id
+    ).join(
+        SessionPartition, SessionPartition.id == Quiz.partition_id
+    ).join(
+        Session, Session.id == SessionPartition.session_id
+    ).join(
+        Course, Course.id == Session.course_id
+    ).all()
+
+    for r in all_rows:
+        key = r.course_name
+
+        if key not in subject_map:
+            subject_map[key] = {
+                "you_correct": 0,
+                "you_total": 0,
+                "class_correct": 0,
+                "class_total": 0
+            }
+
+        subject_map[key]["class_total"] += 1
+        if r.is_correct:
+            subject_map[key]["class_correct"] += 1
+
+    subject_performance = []
+
+    for topic, data in subject_map.items():
+        you_acc = (data["you_correct"] / data["you_total"] * 100) if data["you_total"] else 0
+        class_acc = (data["class_correct"] / data["class_total"] * 100) if data["class_total"] else 0
+
+        subject_performance.append({
+            "topic": topic,
+            "you": round(you_acc, 2),
+            "class_avg": round(class_acc, 2)
+        })
+
+    # =========================
+    # FINAL RESPONSE
     # =========================
     return jsonify({
         "overall_accuracy": round(overall_accuracy, 2),
         "participation_rate": participation_rate,
-        "sessions": sessions
+        "sessions": sessions,
+        "trend": trend,
+        "class_avg": round(class_avg, 2),
+        "subject_performance": subject_performance
     })

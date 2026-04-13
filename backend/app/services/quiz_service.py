@@ -17,7 +17,6 @@ def extract_json(text):
     """
     Extract JSON array from LLM response safely
     """
-
     try:
         return json.loads(text)
     except:
@@ -35,6 +34,20 @@ def extract_json(text):
 
 
 # =========================
+# SMART TRIM (IMPORTANT)
+# =========================
+def smart_trim(text, max_chars=6000):
+    """
+    Keeps beginning + end of long text to preserve context
+    """
+    if len(text) <= max_chars:
+        return text
+
+    half = max_chars // 2
+    return text[:half] + "\n...\n" + text[-half:]
+
+
+# =========================
 # GENERATE QUIZ
 # =========================
 def generate_quiz_for_partition(partition_id, session_id):
@@ -48,7 +61,6 @@ def generate_quiz_for_partition(partition_id, session_id):
     if existing:
         print("[QUIZ] Already exists, skipping generation")
 
-        # 🔥 FIX: include session_id
         socketio.emit(
             "quiz_ready",
             {
@@ -85,7 +97,14 @@ def generate_quiz_for_partition(partition_id, session_id):
         cleaned = raw_text  # fallback
 
     # =========================
-    # 3. GENERATE MCQs
+    # 3. PREP INPUT (SMART TRIM)
+    # =========================
+    trimmed_text = smart_trim(cleaned, 6000)
+
+    print(f"[QUIZ INPUT SIZE] {len(trimmed_text)} chars")
+
+    # =========================
+    # 4. GENERATE MCQs
     # =========================
     prompt = f"""
 Generate 5 multiple choice questions from the following lecture content.
@@ -113,7 +132,7 @@ Return STRICT JSON ONLY in this format:
 ]
 
 Text:
-{cleaned[:4000]}
+{trimmed_text}
 """
 
     messages = [
@@ -133,7 +152,7 @@ Text:
         return
 
     # =========================
-    # 4. STORE QUIZ
+    # 5. STORE QUIZ
     # =========================
     quiz = Quiz(
         partition_id=partition_id,
@@ -144,7 +163,6 @@ Text:
     db.session.flush()
 
     for q in questions_data:
-
         try:
             question = Question(
                 quiz_id=quiz.id,
@@ -167,7 +185,7 @@ Text:
     print("[QUIZ] Stored successfully")
 
     # =========================
-    # 5. EMIT TO STUDENTS
+    # 6. EMIT TO STUDENTS
     # =========================
     socketio.emit(
         "quiz_ready",
