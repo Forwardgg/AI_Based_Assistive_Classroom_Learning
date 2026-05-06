@@ -253,7 +253,6 @@ def handle_join_session(data):
     emit_session_state(session_id, request.sid)  # send current state
 
 def run_session_timer(app, session_id):
-
     with app.app_context():
 
         session = Session.query.get(session_id)
@@ -275,6 +274,10 @@ def run_session_timer(app, session_id):
             if duration_seconds <= 0:
                 continue
 
+            # ✅ check stopped before starting each partition too
+            if session_controls.get(session_id, {}).get("stopped"):
+                return
+
             session.current_partition_index = partition.partition_index
             db.session.commit()
 
@@ -289,42 +292,38 @@ def run_session_timer(app, session_id):
 
             pause_start = None
 
-            # main timer loop
             while True:
+                ctrl = session_controls.get(session_id, {})
 
-                session = Session.query.get(session_id)
-
-                if not session or session.status not in ["active", "paused"]:
+                # ✅ check in-memory flags FIRST — no DB query needed
+                if ctrl.get("stopped"):
                     return
 
-                # handle pause
-                if session_controls.get(session_id, {}).get("paused"):
-
+                if ctrl.get("paused"):
                     if pause_start is None:
                         pause_start = int(time.time())
-
-                    socketio.sleep(1)
+                    socketio.sleep(0.2)  # ✅ reduced from 1s
                     continue
 
-                # adjust time after resume
+                # resume after pause
                 if pause_start is not None:
                     pause_duration = int(time.time()) - pause_start
                     end_time += pause_duration
                     pause_start = None
-
                     session.partition_end_time = end_time
                     db.session.commit()
-
                     emit_session_state(session_id, room)
 
                 now = int(time.time())
-
                 if end_time - now <= 0:
                     break
 
-                socketio.sleep(1)
+                socketio.sleep(0.2)  # ✅ reduced from 1s
 
-            # notify partition end
+            # ✅ check again before doing post-partition work
+            if session_controls.get(session_id, {}).get("stopped"):
+                return
+
             socketio.emit(
                 "partition_finished",
                 {
@@ -335,9 +334,9 @@ def run_session_timer(app, session_id):
                 room=room
             )
 
-            finalize_partition_transcript(partition.id)  # combine transcript
+            finalize_partition_transcript(partition.id)
 
-            session.status = "paused"  # auto pause after partition
+            session.status = "paused"
             db.session.commit()
 
             session_controls.setdefault(session_id, {})
@@ -345,11 +344,12 @@ def run_session_timer(app, session_id):
 
             emit_session_state(session_id, room)
 
-            # wait for resume
+            # wait for resume — ✅ also check stopped here
             while session_controls.get(session_id, {}).get("paused"):
-                socketio.sleep(1)
+                if session_controls.get(session_id, {}).get("stopped"):
+                    return
+                socketio.sleep(0.2)  # ✅ reduced from 1s
 
-        # session completed
         session.status = "completed"
         session.current_partition_index = None
         session.partition_start_time = None

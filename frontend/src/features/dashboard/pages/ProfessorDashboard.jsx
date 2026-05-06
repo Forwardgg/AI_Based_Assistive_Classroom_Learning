@@ -242,9 +242,10 @@ const ProfessorDashboard = () => {
 
   const handlePause = async () => {
     if (!activeSessionId) return;
-
+    setSessionStatus("paused");
+    clearInterval(intervalRef.current);
     await api.post(`/sessions/${activeSessionId}/pause`);
-  };
+};
 
   const handleStop = async () => {
     if (!activeSessionId) return;
