@@ -14,14 +14,14 @@ user_bp = Blueprint(
 @user_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_users():
-    claims = get_jwt()
+    claims = get_jwt()  # extract JWT claims (role, etc.)
 
-    # Only professor can view all users
     if claims.get("role") != "professor":
-        return jsonify({"msg": "Access forbidden"}), 403
+        return jsonify({"msg": "Access forbidden"}), 403  # restrict to professors
 
-    users = User.query.all()
-    return jsonify([u.to_dict() for u in users]), 200
+    users = User.query.all()  # fetch all users
+    return jsonify([u.to_dict() for u in users]), 200  # serialize response
+
 
 # GET CURRENT USER PROFILE
 @user_bp.route("/me", methods=["GET"])
@@ -29,10 +29,10 @@ def get_users():
 def get_current_user():
     from flask_jwt_extended import get_jwt_identity
 
-    user_id = int(get_jwt_identity())
+    user_id = int(get_jwt_identity())  # get logged-in user id
     user = User.query.get(user_id)
 
     if not user:
         return jsonify({"msg": "User not found"}), 404
 
-    return jsonify(user.to_dict()), 200
+    return jsonify(user.to_dict()), 200  # return profile info

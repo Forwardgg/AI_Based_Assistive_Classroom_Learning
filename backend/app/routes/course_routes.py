@@ -12,10 +12,9 @@ from app.models.session import Session
 import random
 import string
 
-course_bp = Blueprint("courses", __name__)
+course_bp = Blueprint("courses", __name__)  # course route group 
 
-
-# Generates a random 6-character class code using uppercase letters and digits
+# generates unique 6-char class code for joining courses
 def generate_class_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
@@ -23,32 +22,27 @@ def generate_class_code():
 @course_bp.route("", methods=["POST"])
 @jwt_required()
 def create_course():
-    # Get current user from JWT
-    user_id = int(get_jwt_identity())
+    user_id = int(get_jwt_identity())  # get logged-in user id
     user = User.query.get(user_id)
 
-    # Only professors are allowed to create courses
     if not user or user.role != "professor":
-        return jsonify({"error": "Only professors can create courses"}), 403
+        return jsonify({"error": "Only professors can create courses"}), 403  # role restriction
 
     data = request.get_json() or {}
 
-    # Validate required fields
     required_fields = ["course_name", "year", "semester"]
     if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
+        return jsonify({"error": "Missing required fields"}), 400  # validation
 
-    # Ensure semester value is valid
     if data["semester"] not in ["spring", "autumn"]:
-        return jsonify({"error": "Invalid semester value"}), 400
+        return jsonify({"error": "Invalid semester value"}), 400  # enum validation
 
-    # Generate a unique class code (retry until unique)
+    # ensure class_code is unique
     while True:
         class_code = generate_class_code()
         if not Course.query.filter_by(class_code=class_code).first():
             break
 
-    # Create course record
     course = Course(
         course_name=data["course_name"],
         year=data["year"],
@@ -58,7 +52,7 @@ def create_course():
     )
 
     db.session.add(course)
-    db.session.commit()
+    db.session.commit()  # persist course
 
     return jsonify(course.to_dict()), 201
 
@@ -66,27 +60,23 @@ def create_course():
 @course_bp.route("/join", methods=["POST"])
 @jwt_required()
 def join_course():
-    # Get current user from JWT
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
 
-    # Only students are allowed to join courses
     if not user or user.role != "student":
-        return jsonify({"error": "Only students can join courses"}), 403
+        return jsonify({"error": "Only students can join courses"}), 403  # role restriction
 
     data = request.get_json() or {}
 
-    # Validate required input
     if "class_code" not in data or "roll_no" not in data:
-        return jsonify({"error": "class_code and roll_no required"}), 400
+        return jsonify({"error": "class_code and roll_no required"}), 400  # validation
 
-    # Find course using class code
     course = Course.query.filter_by(class_code=data["class_code"]).first()
 
     if not course:
-        return jsonify({"error": "Invalid class code"}), 404
+        return jsonify({"error": "Invalid class code"}), 404  # invalid code
 
-    # Prevent duplicate enrollment for the same student and course
+    # prevent duplicate enrollment
     existing = Enrollment.query.filter_by(
         student_id=user_id,
         course_id=course.id
@@ -95,7 +85,6 @@ def join_course():
     if existing:
         return jsonify({"error": "Already enrolled in this course"}), 400
 
-    # Create enrollment record
     enrollment = Enrollment(
         student_id=user_id,
         course_id=course.id,
@@ -113,16 +102,13 @@ def join_course():
 def get_courses():
     from sqlalchemy import func
 
-    # Get current user from JWT
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
 
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # =========================
-    # PROFESSOR VIEW (WITH STATS)
-    # =========================
+    # professor view with aggregated stats
     if user.role == "professor":
         courses = (
             db.session.query(
@@ -130,7 +116,7 @@ def get_courses():
                 func.count(func.distinct(Enrollment.student_id)).label("students_count"),
                 func.count(func.distinct(Session.id)).label("sessions_count"),
                 func.max(Session.created_at).label("last_session"),
-                func.bool_or(Session.status == "active").label("live"),
+                func.bool_or(Session.status == "active").label("live"),  # any active session
             )
             .outerjoin(Enrollment, Enrollment.course_id == Course.id)
             .outerjoin(Session, Session.course_id == Course.id)
@@ -155,9 +141,7 @@ def get_courses():
 
         return jsonify(result), 200
 
-    # =========================
-    # STUDENT VIEW (KEEP SIMPLE)
-    # =========================
+    # student view (courses enrolled in)
     else:
         enrollments = Enrollment.query.filter_by(student_id=user_id).all()
         courses = [e.course for e in enrollments]
@@ -166,7 +150,7 @@ def get_courses():
         for c in courses:
             data = c.to_dict()
 
-            # optional: also include stats for students
+            # simple stats for student view
             students_count = Enrollment.query.filter_by(course_id=c.id).count()
             sessions_count = Session.query.filter_by(course_id=c.id).count()
             last_session = (
@@ -190,27 +174,22 @@ def get_courses():
 @course_bp.route("/<int:course_id>/sessions", methods=["GET"])
 @jwt_required()
 def get_course_sessions(course_id):
-    # Get current user from JWT
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
 
-    # Validate user existence
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # Fetch course
     course = Course.query.get(course_id)
 
     if not course:
         return jsonify({"error": "Course not found"}), 404
 
-    # Enforce access control
+    # access control: professor owns or student enrolled
     if user.role == "professor":
-        # Professor must own the course
         if course.professor_id != user_id:
             return jsonify({"error": "Unauthorized"}), 403
     else:
-        # Student must be enrolled in the course
         enrolled = Enrollment.query.filter_by(
             student_id=user_id,
             course_id=course_id
@@ -219,12 +198,12 @@ def get_course_sessions(course_id):
         if not enrolled:
             return jsonify({"error": "Unauthorized"}), 403
 
-    # Fetch sessions for the course (latest first)
-    sessions = Session.query.filter_by(course_id=course_id).order_by(Session.id.desc()).all()
+    sessions = Session.query.filter_by(course_id=course_id)\
+        .order_by(Session.id.desc()).all()  # latest first
 
     result = []
 
-    # Build response with session details and partitions
+    # include partition details inside each session
     for s in sessions:
         result.append({
             "id": s.id,

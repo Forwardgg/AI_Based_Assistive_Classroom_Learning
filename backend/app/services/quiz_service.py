@@ -10,19 +10,17 @@ from app.services.summary_service import clean_transcript
 from app.services.ai_service import call_deepseek
 
 
-# =========================
 # SAFE JSON PARSER
-# =========================
 def extract_json(text):
     """
     Extract JSON array from LLM response safely
     """
     try:
-        return json.loads(text)
+        return json.loads(text)  # direct parse
     except:
         pass
 
-    match = re.search(r"\[.*\]", text, re.DOTALL)
+    match = re.search(r"\[.*\]", text, re.DOTALL)  # fallback: extract JSON block
 
     if match:
         try:
@@ -30,12 +28,10 @@ def extract_json(text):
         except:
             pass
 
-    raise ValueError("Invalid JSON from LLM")
+    raise ValueError("Invalid JSON from LLM")  # fail if parsing not possible
 
 
-# =========================
-# SMART TRIM (IMPORTANT)
-# =========================
+# SMART TRIM
 def smart_trim(text, max_chars=6000):
     """
     Keeps beginning + end of long text to preserve context
@@ -44,24 +40,20 @@ def smart_trim(text, max_chars=6000):
         return text
 
     half = max_chars // 2
-    return text[:half] + "\n...\n" + text[-half:]
+    return text[:half] + "\n...\n" + text[-half:]  # preserves context from both ends
 
 
-# =========================
 # GENERATE QUIZ
-# =========================
 def generate_quiz_for_partition(partition_id, session_id):
 
     print(f"[QUIZ] Generating for partition {partition_id}")
 
-    # =========================
-    # 0. PREVENT DUPLICATES
-    # =========================
+    # prevent duplicate quiz generation
     existing = Quiz.query.filter_by(partition_id=partition_id).first()
     if existing:
         print("[QUIZ] Already exists, skipping generation")
 
-        socketio.emit(
+        socketio.emit(  # notify frontend even if already exists
             "quiz_ready",
             {
                 "session_id": session_id,
@@ -71,9 +63,7 @@ def generate_quiz_for_partition(partition_id, session_id):
         )
         return
 
-    # =========================
-    # 1. GET TRANSCRIPT
-    # =========================
+    # fetch transcript for partition
     transcript = Transcript.query.filter_by(
         partition_id=partition_id
     ).first()
@@ -88,24 +78,18 @@ def generate_quiz_for_partition(partition_id, session_id):
         print("[QUIZ ERROR] Transcript too short")
         return
 
-    # =========================
-    # 2. CLEAN TRANSCRIPT
-    # =========================
+    # clean transcript using AI (remove noise/fillers)
     try:
         cleaned = clean_transcript(raw_text)
     except:
-        cleaned = raw_text  # fallback
+        cleaned = raw_text  # fallback if cleaning fails
 
-    # =========================
-    # 3. PREP INPUT (SMART TRIM)
-    # =========================
+    # trim large input to avoid token limits
     trimmed_text = smart_trim(cleaned, 6000)
 
     print(f"[QUIZ INPUT SIZE] {len(trimmed_text)} chars")
 
-    # =========================
-    # 4. GENERATE MCQs
-    # =========================
+    # prompt for MCQ generation
     prompt = f"""
 Generate 5 multiple choice questions from the following lecture content.
 
@@ -141,8 +125,8 @@ Text:
     ]
 
     try:
-        response = call_deepseek(messages)
-        questions_data = extract_json(response)
+        response = call_deepseek(messages)  # call LLM
+        questions_data = extract_json(response)  # parse JSON output
     except Exception as e:
         print("[QUIZ ERROR] LLM failed:", e)
         return
@@ -151,17 +135,16 @@ Text:
         print("[QUIZ ERROR] Invalid format")
         return
 
-    # =========================
-    # 5. STORE QUIZ
-    # =========================
+    # store quiz metadata
     quiz = Quiz(
         partition_id=partition_id,
         source="AI"
     )
 
     db.session.add(quiz)
-    db.session.flush()
+    db.session.flush()  # get quiz.id before commit
 
+    # store each generated question
     for q in questions_data:
         try:
             question = Question(
@@ -177,16 +160,14 @@ Text:
             db.session.add(question)
 
         except Exception as e:
-            print("[QUESTION SKIP]", e)
+            print("[QUESTION SKIP]", e)  # skip malformed question
             continue
 
     db.session.commit()
 
     print("[QUIZ] Stored successfully")
 
-    # =========================
-    # 6. EMIT TO STUDENTS
-    # =========================
+    # notify students that quiz is ready
     socketio.emit(
         "quiz_ready",
         {

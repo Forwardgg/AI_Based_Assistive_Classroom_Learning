@@ -4,39 +4,42 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_socketio import SocketIO
 
-db = SQLAlchemy()
-jwt = JWTManager()
+db = SQLAlchemy()  # Database instance (shared across app)
+jwt = JWTManager()  # JWT auth manager
+
 socketio = SocketIO(
-    cors_allowed_origins="*",
-    async_mode="eventlet"
+    cors_allowed_origins="*",  # allow frontend connections from any origin
+    async_mode="eventlet"  # enables async real-time communication
 )
+
 def create_app():
     app = Flask(__name__)
-    app.config.from_object("app.config.Config")
+    app.config.from_object("app.config.Config")  # load config (DB, JWT, etc.)
 
     # Initialize extensions
-    CORS(app, supports_credentials=True)
+    CORS(app, supports_credentials=True)  # enable cross-origin requests with cookies/auth
 
-    db.init_app(app)
-    jwt.init_app(app)
-    socketio.init_app(app)
+    db.init_app(app)  # bind database to app
+    jwt.init_app(app)  # enable JWT authentication
+    socketio.init_app(app)  # enable Socket.IO for real-time features
 
     # 🔹 JWT Error Handlers
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
-        return {"message": "Token expired"}, 401
+        return {"message": "Token expired"}, 401  # handles expired JWT
 
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
-        return {"message": "Invalid token"}, 401
+        return {"message": "Invalid token"}, 401  # handles malformed/invalid JWT
 
     @jwt.unauthorized_loader
     def missing_token_callback(error):
-        return {"message": "Authorization required"}, 401
+        return {"message": "Authorization required"}, 401  # handles missing JWT
 
     # =========================
     # IMPORT MODELS
     # =========================
+    # ensure all models are registered with SQLAlchemy before use
     from .models.user import User
     from .models.enrollment import Enrollment
     from .models.session import Session
@@ -48,19 +51,19 @@ def create_app():
     from .models.lecture_notes import LectureNotes
     from .models.student_answer import StudentAnswer
 
-    # =========================
+
     # TEST DB CONNECTION
-    # =========================
     with app.app_context():
         try:
-            db.engine.connect()
+            db.engine.connect()  # check if DB connection works
             print("PostgreSQL Connected Successfully")
         except Exception as e:
             print("PostgreSQL Connection Failed:", e)
 
-    # =========================
+
     # REGISTER BLUEPRINTS
-    # =========================
+
+    # modular route registration (separates features)
     from .routes.user_routes import user_bp
     from .routes.auth_routes import auth_bp
     from .routes.course_routes import course_bp
@@ -77,4 +80,4 @@ def create_app():
     app.register_blueprint(quiz_bp, url_prefix="/api/quiz")
     app.register_blueprint(analytics_bp, url_prefix="/api/analytics")
 
-    return app
+    return app  # return fully configured Flask app

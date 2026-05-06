@@ -8,9 +8,7 @@ const QuizModal = ({ partitionId, onClose }) => {
   const [answers, setAnswers] = useState({});
   const [score, setScore] = useState(null);
 
-  // =========================
   // FETCH QUIZ
-  // =========================
   useEffect(() => {
     const fetchQuiz = async () => {
       const res = await api.get(`/quiz/partition/${partitionId}`);
@@ -20,16 +18,13 @@ const QuizModal = ({ partitionId, onClose }) => {
     fetchQuiz();
   }, [partitionId]);
 
-  // =========================
+
   // SELECT ANSWER
-  // =========================
   const selectAnswer = (qId, option) => {
     setAnswers(prev => ({ ...prev, [qId]: option }));
   };
 
-  // =========================
   // SUBMIT
-  // =========================
   const handleSubmit = async () => {
 
     const formatted = Object.entries(answers).map(([qId, opt]) => ({

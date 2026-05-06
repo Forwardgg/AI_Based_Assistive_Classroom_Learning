@@ -1,13 +1,11 @@
 // frontend/src/features/analytics/analyticsAPI.js
 import api from "../../services/api";
 
-// =========================
 // GENERIC HANDLER
-// =========================
 const handleRequest = async (request) => {
   try {
     const res = await request;
-    return res.data; // ✅ always return data directly
+    return res.data; //always return data directly
   } catch (err) {
     console.error(
       "Analytics API error:",
@@ -17,29 +15,21 @@ const handleRequest = async (request) => {
   }
 };
 
-// =====================================================
-// 🔷 PROFESSOR ANALYTICS
-// =====================================================
+//  PROFESSOR ANALYTICS
 
-// =========================
 // GET ALL SESSIONS (PROFESSOR)
-// =========================
 export const getProfessorSessions = () =>
   handleRequest(
     api.get("/analytics/sessions")
   );
 
-// =========================
 // FULL SESSION ANALYTICS (PROFESSOR)
-// =========================
 export const getProfessorSessionAnalytics = (sessionId) =>
   handleRequest(
     api.get(`/analytics/session/${sessionId}`)
   );
 
-// =========================
 // OPTIONAL GRANULAR (if needed later)
-// =========================
 export const getSessionSummary = (sessionId) =>
   handleRequest(
     api.get(`/analytics/session/${sessionId}/summary`)
@@ -61,7 +51,7 @@ export const getQuestionAnalytics = (sessionId) =>
   );
 
 // =====================================================
-// 🔷 STUDENT ANALYTICS
+//  STUDENT ANALYTICS
 // =====================================================
 
 // =========================
@@ -81,7 +71,7 @@ export const getStudentSessionAnalytics = (sessionId) =>
   );
 
 // =====================================================
-// 🔷 OPTIONAL FUTURE (COURSE LEVEL)
+//  OPTIONAL FUTURE (COURSE LEVEL)
 // =====================================================
 export const getCourseTrend = (courseId) =>
   handleRequest(

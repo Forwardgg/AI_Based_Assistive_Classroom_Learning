@@ -7,29 +7,24 @@ from app.models.transcript import Transcript
 def store_segment(partition_id, text):
 
     try:
-
-        # Determine next segment index based on existing count
+        # determine next index (keeps segments ordered)
         next_index = TranscriptSegment.query.filter_by(
             partition_id=partition_id
         ).count()
 
-        # Create new transcript segment
         segment = TranscriptSegment(
             partition_id=partition_id,
             segment_index=next_index,
             text=text
         )
 
-        # Save segment to database
         db.session.add(segment)
-        db.session.commit()
+        db.session.commit()  # persist segment
 
         return segment
 
     except Exception as e:
-
-        # Rollback transaction on failure
-        db.session.rollback()
+        db.session.rollback()  # revert on failure
         print("Segment DB insert failed:", e)
         raise
 
@@ -38,8 +33,7 @@ def store_segment(partition_id, text):
 def finalize_partition_transcript(partition_id):
 
     try:
-
-        # Check if transcript already exists to avoid duplication
+        # avoid duplicate transcript creation
         existing = Transcript.query.filter_by(
             partition_id=partition_id
         ).first()
@@ -47,7 +41,7 @@ def finalize_partition_transcript(partition_id):
         if existing:
             return existing
 
-        # Fetch all segments in order
+        # fetch segments in correct order
         segments = (
             TranscriptSegment.query
             .filter_by(partition_id=partition_id)
@@ -55,41 +49,31 @@ def finalize_partition_transcript(partition_id):
             .all()
         )
 
-        # If no segments found, return None
         if not segments:
             return None
 
-        # Combine all segment texts into one string
+        # merge all segment texts
         full_text = " ".join(
             s.text.strip()
             for s in segments
             if s.text and s.text.strip()
         )
 
-        # Remove newline characters
-        full_text = full_text.replace("\n", " ")
+        full_text = full_text.replace("\n", " ")  # remove line breaks
+        full_text = " ".join(full_text.split())  # normalize spaces
+        full_text = full_text.strip()  # clean edges
 
-        # Normalize spacing (remove extra spaces)
-        full_text = " ".join(full_text.split())
-
-        # Trim leading and trailing whitespace
-        full_text = full_text.strip()
-
-        # Create final transcript record
         transcript = Transcript(
             partition_id=partition_id,
             transcript_text=full_text
         )
 
-        # Save transcript to database
         db.session.add(transcript)
-        db.session.commit()
+        db.session.commit()  # save final transcript
 
         return transcript
 
     except Exception as e:
-
-        # Rollback transaction on failure
         db.session.rollback()
         print("Transcript finalize failed:", e)
         raise

@@ -1,8 +1,19 @@
 // frontend/src/features/dashboard/pages/ProfessorDashboardUI.jsx
 import React, { useState, useMemo } from "react";
 import {
-  BookOpen, Users, Clock, Brain, Plus, FileText, BarChart3,
-  Pause, Play, Square, Search, X, Library
+  BookOpen,
+  Users,
+  Clock,
+  Brain,
+  Plus,
+  FileText,
+  BarChart3,
+  Pause,
+  Play,
+  Square,
+  Search,
+  X,
+  Library,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
@@ -14,51 +25,81 @@ import "./ProfessorDashboardUI.css";
 
 const ProfessorDashboardUI = (props) => {
   const {
-    courses, loading, activeCourse, sessionStatus, currentPartition, timeLeft,
-    showModal, showCourseModal, selectedCourse, showQuizPrompt, lastPartitionId,
-    quizGenerated, loadingQuiz, onStartSession, onPause, onResume, onStop,
-    onGenerateQuiz, onCreateSession, onCloseModal, onOpenCourseModal,
-    onCloseCourseModal, onFetchCourses, onCloseQuiz
+    courses,
+    loading,
+    activeCourse,
+    sessionStatus,
+    currentPartition,
+    timeLeft,
+
+    showModal,
+    showCourseModal,
+    selectedCourse,
+
+    showQuizPrompt,
+    lastPartitionId,
+    quizGenerated,
+    loadingQuiz,
+
+    onStartSession,
+    onPause,
+    onResume,
+    onStop,
+
+    onGenerateQuiz,
+    onCreateSession,
+    onCloseModal,
+
+    onOpenCourseModal,
+    onCloseCourseModal,
+    onFetchCourses,
+
+    onCloseQuiz,
   } = props;
 
   const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
 
-  // =========================
-  // FILTER COURSES
-  // =========================
-  const filteredCourses = courses.filter(course =>
-    course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    course.class_code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCourses = useMemo(() => {
+    return courses.filter(
+      (course) =>
+        course.course_name
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        course.class_code
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase())
+    );
+  }, [courses, searchTerm]);
 
-  // =========================
-  // STATS (REAL DATA)
-  // =========================
   const stats = useMemo(() => {
-    const totalSessions = courses.reduce((sum, c) => sum + (c.sessions_count || 0), 0);
-    const totalStudents = courses.reduce((sum, c) => sum + (c.students_count || 0), 0);
+    const totalSessions = courses.reduce(
+      (sum, c) => sum + (c.sessions_count || 0),
+      0
+    );
+
+    const totalStudents = courses.reduce(
+      (sum, c) => sum + (c.students_count || 0),
+      0
+    );
 
     return {
       totalSessions,
-      totalStudents
+      totalStudents,
     };
   }, [courses]);
 
-  // =========================
-  // RECENT SESSIONS (DERIVED)
-  // =========================
   const recentSessions = useMemo(() => {
     const sessions = [];
 
-    courses.forEach(course => {
+    courses.forEach((course) => {
       if (course.last_session) {
         sessions.push({
           id: course.id,
           name: course.course_name,
           time: course.last_session,
           students: course.students_count || 0,
-          status: course.live ? "Active" : "Completed"
+          status: course.live ? "Active" : "Completed",
         });
       }
     });
@@ -71,29 +112,47 @@ const ProfessorDashboardUI = (props) => {
       <div className="dashboard-container">
         <main className="main-content">
 
-          {/* LIVE BAR */}
+          {/* LIVE SESSION BAR */}
           {(sessionStatus === "active" || sessionStatus === "paused") && (
             <div className={`session-control-bar ${sessionStatus}`}>
               <div className="session-bar-info">
                 <div className="pulse-indicator"></div>
-                <strong>Live Session: Partition {currentPartition}</strong>
+
+                <strong>
+                  Live Session: Partition {currentPartition}
+                </strong>
+
                 <span className="timer-display">
-                  <Clock size={16} /> {timeLeft !== null ? `${timeLeft}s` : "--"}
+                  <Clock size={16} />
+                  {timeLeft !== null ? `${timeLeft}s` : "--"}
                 </span>
               </div>
 
               <div className="session-bar-actions">
                 {sessionStatus === "paused" ? (
-                  <button className="bar-btn resume" onClick={onResume}>
-                    <Play size={18}/> Resume
+                  <button
+                    className="bar-btn resume"
+                    onClick={onResume}
+                  >
+                    <Play size={18} />
+                    Resume
                   </button>
                 ) : (
-                  <button className="bar-btn pause" onClick={onPause}>
-                    <Pause size={18}/> Pause
+                  <button
+                    className="bar-btn pause"
+                    onClick={onPause}
+                  >
+                    <Pause size={18} />
+                    Pause
                   </button>
                 )}
-                <button className="bar-btn stop" onClick={onStop}>
-                  <Square size={18}/> Stop
+
+                <button
+                  className="bar-btn stop"
+                  onClick={onStop}
+                >
+                  <Square size={18} />
+                  Stop
                 </button>
               </div>
             </div>
@@ -101,16 +160,39 @@ const ProfessorDashboardUI = (props) => {
 
           {/* HEADER */}
           <header className="greeting">
-            <h1>Good morning, Professor</h1>
+            <h1>Dashboard</h1>
             <p>Here's an overview of your lecture activity.</p>
           </header>
 
           {/* STATS */}
           <div className="stats-row">
-            <StatCard title="Total Sessions" value={stats.totalSessions} label="Across courses" Icon={BookOpen} />
-            <StatCard title="Active Students" value={stats.totalStudents} label="Across courses" Icon={Users} />
-            <StatCard title="Courses" value={courses.length} label="You teach" Icon={Library} />
-            <StatCard title="Live Sessions" value={courses.filter(c => c.live).length} label="Right now" Icon={Brain} />
+            <StatCard
+              title="Total Sessions"
+              value={stats.totalSessions}
+              label="Across courses"
+              Icon={BookOpen}
+            />
+
+            <StatCard
+              title="Active Students"
+              value={stats.totalStudents}
+              label="Across courses"
+              Icon={Users}
+            />
+
+            <StatCard
+              title="Courses"
+              value={courses.length}
+              label="You teach"
+              Icon={Library}
+            />
+
+            <StatCard
+              title="Live Sessions"
+              value={courses.filter((c) => c.live).length}
+              label="Right now"
+              Icon={Brain}
+            />
           </div>
 
           <div className="dashboard-layout-stack">
@@ -120,56 +202,121 @@ const ProfessorDashboardUI = (props) => {
               <div className="content-card flex-column list-container">
                 <div className="list-header">
                   <h2>Your Courses</h2>
+
                   <div className="search-wrapper">
                     <Search size={14} />
+
                     <input
                       type="text"
                       placeholder="Search courses..."
                       value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onChange={(e) =>
+                        setSearchTerm(e.target.value)
+                      }
                     />
                   </div>
                 </div>
 
                 <div className="scroll-area">
-                  {filteredCourses.map((course) => (
-                    <div key={course.id} className="course-row-simple">
-                      <div className="course-info">
-                        <h3>{course.course_name}</h3>
-                        <p>{course.class_code}</p>
-                      </div>
-
-                      {activeCourse === course.id && sessionStatus !== "completed" ? (
-                        <div className="session-controls">
-                          {sessionStatus === "active" && (
-                            <button onClick={onPause} className="btn-icon-only"><Pause size={14}/></button>
-                          )}
-                          {sessionStatus === "paused" && (
-                            <button onClick={onResume} className="btn-icon-only"><Play size={14}/></button>
-                          )}
-                          <button onClick={onStop} className="btn-icon-only stop"><Square size={14}/></button>
+                  {loading ? (
+                    <p>Loading...</p>
+                  ) : filteredCourses.length === 0 ? (
+                    <p>No courses found.</p>
+                  ) : (
+                    filteredCourses.map((course) => (
+                      <div
+                        key={course.id}
+                        className="course-row-simple"
+                      >
+                        <div className="course-info">
+                          <h3>{course.course_name}</h3>
+                          <p>{course.class_code}</p>
                         </div>
-                      ) : (
-                        <button
-                          className="btn-primary-blue"
-                          onClick={() => onStartSession(course.id)}
-                        >
-                          Start
-                        </button>
-                      )}
-                    </div>
-                  ))}
+
+                        {activeCourse === course.id &&
+                        sessionStatus !== "completed" ? (
+                          <div className="session-controls">
+                            {sessionStatus === "active" && (
+                              <button
+                                onClick={onPause}
+                                className="btn-icon-only"
+                              >
+                                <Pause size={14} />
+                              </button>
+                            )}
+
+                            {sessionStatus === "paused" && (
+                              <button
+                                onClick={onResume}
+                                className="btn-icon-only"
+                              >
+                                <Play size={14} />
+                              </button>
+                            )}
+
+                            <button
+                              onClick={onStop}
+                              className="btn-icon-only stop"
+                            >
+                              <Square size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            className="btn-primary-blue"
+                            onClick={() =>
+                              onStartSession(course.id)
+                            }
+                          >
+                            Start
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* ACTIONS */}
+              {/* QUICK ACTIONS */}
               <aside className="content-card flex-column">
                 <h2>Quick Actions</h2>
+
                 <div className="actions-grid-compact">
-                  <ActionButton icon={<Plus size={18} />} title="Create Course" desc="Add new" onClick={onOpenCourseModal} />
-                  <ActionButton icon={<FileText size={18} />} title="Notes" desc="PDFs" onClick={() => navigate("/dashboard/professor/courses")} />
-                  <ActionButton icon={<Library size={18} />} title="Quiz" desc="AI & Custom" onClick={() => navigate("/dashboard/professor/courses")} />
-                  <ActionButton icon={<BarChart3 size={18} />} title="Analytics" desc="Insights" onClick={() => navigate("/dashboard/professor/analytics")} />
+                  <ActionButton
+                    icon={<Plus size={18} />}
+                    title="Create Course"
+                    desc="Add new"
+                    onClick={onOpenCourseModal}
+                  />
+
+                  <ActionButton
+                    icon={<FileText size={18} />}
+                    title="Notes"
+                    desc="PDFs"
+                    onClick={() =>
+                      navigate("/dashboard/professor/courses")
+                    }
+                  />
+
+                  <ActionButton
+                    icon={<Library size={18} />}
+                    title="Quiz"
+                    desc="AI & Custom"
+                    onClick={() =>
+                      navigate("/dashboard/professor/courses")
+                    }
+                  />
+
+                  <ActionButton
+                    icon={<BarChart3 size={18} />}
+                    title="Analytics"
+                    desc="Insights"
+                    onClick={() =>
+                      navigate(
+                        "/dashboard/professor/analytics"
+                      )
+                    }
+                  />
                 </div>
               </aside>
             </div>
@@ -177,19 +324,30 @@ const ProfessorDashboardUI = (props) => {
             {/* RECENT SESSIONS */}
             <div className="content-card full-width-sessions">
               <h2>Recent Sessions</h2>
+
               <div className="recent-list-horizontal">
                 {recentSessions.length === 0 ? (
                   <p>No recent sessions</p>
                 ) : (
                   recentSessions.map((s) => (
-                    <div key={s.id} className="recent-row">
+                    <div
+                      key={s.id}
+                      className="recent-row"
+                    >
                       <div className="recent-info">
                         <h3>{s.name}</h3>
                         <p>{s.time}</p>
                       </div>
+
                       <div className="recent-meta">
-                        <span><Users size={12}/> {s.students}</span>
-                        <span className={`status-badge ${s.status.toLowerCase()}`}>
+                        <span>
+                          <Users size={12} />
+                          {s.students}
+                        </span>
+
+                        <span
+                          className={`status-badge ${s.status.toLowerCase()}`}
+                        >
                           {s.status}
                         </span>
                       </div>
@@ -200,7 +358,7 @@ const ProfessorDashboardUI = (props) => {
             </div>
           </div>
 
-          {/* MODALS (UNCHANGED) */}
+          {/* SESSION MODAL */}
           {showModal && (
             <SessionModal
               courseId={selectedCourse}
@@ -209,21 +367,102 @@ const ProfessorDashboardUI = (props) => {
             />
           )}
 
+          {/* CREATE COURSE MODAL */}
           {showCourseModal && (
-            <div className="modal-overlay" onClick={onCloseCourseModal}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="modal-overlay"
+              onClick={onCloseCourseModal}
+            >
+              <div
+                className="modal-content"
+                onClick={(e) =>
+                  e.stopPropagation()
+                }
+              >
                 <div className="modal-header">
                   <h2>Create New Course</h2>
-                  <button className="close-btn" onClick={onCloseCourseModal}>
+
+                  <button
+                    className="close-btn"
+                    onClick={onCloseCourseModal}
+                  >
                     <X size={20} />
                   </button>
                 </div>
-                <CreateCourse onCourseCreated={() => {
-                  onFetchCourses();
-                  onCloseCourseModal();
-                }} />
+
+                <CreateCourse
+                  onCourseCreated={() => {
+                    onFetchCourses();
+                    onCloseCourseModal();
+                  }}
+                />
               </div>
             </div>
+          )}
+
+          {/* QUIZ MODAL */}
+          {showQuizPrompt && (
+            <>
+              {!quizGenerated ? (
+                <div
+                  className="modal-overlay"
+                  onClick={onCloseQuiz}
+                >
+                  <div
+                    className="modal-content"
+                    onClick={(e) =>
+                      e.stopPropagation()
+                    }
+                  >
+                    <div className="modal-header">
+                      <h2>Partition Completed</h2>
+
+                      <button
+                        className="close-btn"
+                        onClick={onCloseQuiz}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    <p>
+                      Generate quiz for students or
+                      continue session.
+                    </p>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        marginTop: "16px",
+                      }}
+                    >
+                      <button
+                        className="btn-primary-blue"
+                        onClick={onGenerateQuiz}
+                        disabled={loadingQuiz}
+                      >
+                        {loadingQuiz
+                          ? "Generating..."
+                          : "Generate Quiz"}
+                      </button>
+
+                      <button
+                        className="btn-primary-blue"
+                        onClick={onResume}
+                      >
+                        Resume Session
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <ProfessorQuizView
+                  partitionId={lastPartitionId}
+                  onClose={onCloseQuiz}
+                />
+              )}
+            </>
           )}
         </main>
       </div>
@@ -231,20 +470,39 @@ const ProfessorDashboardUI = (props) => {
   );
 };
 
-const StatCard = ({ title, value, label, Icon }) => (
+const StatCard = ({
+  title,
+  value,
+  label,
+  Icon,
+}) => (
   <div className="stat-card-white">
     <div>
       <span>{title}</span>
       <h2>{value}</h2>
       <small>{label}</small>
     </div>
-    <div className="stat-icon-blue"><Icon size={20}/></div>
+
+    <div className="stat-icon-blue">
+      <Icon size={20} />
+    </div>
   </div>
 );
 
-const ActionButton = ({ icon, title, desc, onClick }) => (
-  <button className="action-tile-compact" onClick={onClick}>
-    <div className="action-icon-wrapper">{icon}</div>
+const ActionButton = ({
+  icon,
+  title,
+  desc,
+  onClick,
+}) => (
+  <button
+    className="action-tile-compact"
+    onClick={onClick}
+  >
+    <div className="action-icon-wrapper">
+      {icon}
+    </div>
+
     <div className="action-text">
       <h3>{title}</h3>
       <p>{desc}</p>

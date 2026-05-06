@@ -1,9 +1,10 @@
 #  backend/app/routes/analytics_routes.py
-from flask import Blueprint, jsonify
-from sqlalchemy import func
-from collections import defaultdict
 
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, jsonify  # routing + JSON response
+from sqlalchemy import func  # SQL aggregation functions
+from collections import defaultdict  # auto-initialize dict
+
+from flask_jwt_extended import jwt_required, get_jwt_identity  # auth
 
 from app import db
 from app.models.session import Session
@@ -15,13 +16,9 @@ from app.models.student_answer import StudentAnswer
 from app.models.user import User
 from app.models.enrollment import Enrollment
 
+analytics_bp = Blueprint("analytics", __name__)  # analytics route group
 
-analytics_bp = Blueprint("analytics", __name__)
-
-
-# =========================
-# HELPER: USER RESOLUTION
-# =========================
+# resolves JWT identity to actual user object (id/email)
 def resolve_user(identity):
     if isinstance(identity, int):
         return User.query.get(identity)
@@ -29,10 +26,7 @@ def resolve_user(identity):
         return User.query.get(int(identity))
     return User.query.filter_by(email=identity).first()
 
-
-# =====================================================
-# 🔹 NEW: GET ALL SESSIONS (FOR DROPDOWN)
-# =====================================================
+# returns sessions for professor dashboard dropdown
 @analytics_bp.route("/sessions", methods=["GET"])
 @jwt_required()
 def get_sessions():
@@ -45,9 +39,9 @@ def get_sessions():
 
     sessions = (
         db.session.query(Session)
-        .join(Course)
+        .join(Course)  # join to filter by professor
         .filter(Course.professor_id == user.id)
-        .order_by(Session.created_at.desc())
+        .order_by(Session.created_at.desc())  # latest first
         .all()
     )
 
@@ -61,14 +55,11 @@ def get_sessions():
     ])
 
 
-# =====================================================
-# 🔹 MAIN ANALYTICS ROUTE
-# =====================================================
+# main analytics endpoint for professor (session-level insights)
 @analytics_bp.route("/session/<int:session_id>", methods=["GET"])
 @jwt_required()
 def get_professor_session_analytics(session_id):
 
-    # ===== AUTH =====
     identity = get_jwt_identity()
     user = resolve_user(identity)
 
@@ -78,27 +69,20 @@ def get_professor_session_analytics(session_id):
     if user.role != "professor":
         return jsonify({"error": "Access denied"}), 403
 
-    # =========================
-    # SESSION (AUTO-FALLBACK)
-    # =========================
     session = Session.query.get(session_id)
 
-    if not session:
+    if not session:  # fallback to latest session if invalid id
         session = Session.query.order_by(Session.created_at.desc()).first()
-
         if not session:
             return jsonify({"error": "No sessions available"}), 404
 
-    session_id = session.id  # update
-
+    session_id = session.id
     course = Course.query.get(session.course_id)
 
     if course.professor_id != user.id:
         return jsonify({"error": "Not your course"}), 403
 
-    # =========================
-    # 🔥 BASE QUERY
-    # =========================
+    # fetch all answers across partitions
     rows = db.session.query(
         SessionPartition.partition_index,
         Question.id.label("question_id"),
@@ -115,9 +99,6 @@ def get_professor_session_analytics(session_id):
         SessionPartition.session_id == session_id
     ).all()
 
-    # =========================
-    # AGGREGATION
-    # =========================
     total_answers = 0
     total_correct = 0
 
@@ -125,6 +106,7 @@ def get_professor_session_analytics(session_id):
     partitions = defaultdict(lambda: {"total": 0, "correct": 0})
     questions = defaultdict(lambda: {"text": "", "total": 0, "correct": 0})
 
+    # aggregate stats in one pass
     for r in rows:
         total_answers += 1
         if r.is_correct:
@@ -143,20 +125,15 @@ def get_professor_session_analytics(session_id):
         if r.is_correct:
             questions[r.question_id]["correct"] += 1
 
-    # =========================
-    # STATS
-    # =========================
     students_participated = len(students)
 
     avg_accuracy = (total_correct / total_answers * 100) if total_answers else 0
     avg_attempts = (total_answers / students_participated) if students_participated else 0
 
-    # =========================
-    # TREND + WEAK TOPICS
-    # =========================
     trend = []
     weak_topics = []
 
+    # partition-wise accuracy + classification
     for p, data in sorted(partitions.items()):
         acc = (data["correct"] / data["total"] * 100) if data["total"] else 0
 
@@ -174,11 +151,9 @@ def get_professor_session_analytics(session_id):
             "status": status
         })
 
-    # =========================
-    # QUESTIONS
-    # =========================
     question_list = []
 
+    # question difficulty classification
     for _, data in questions.items():
         acc = (data["correct"] / data["total"] * 100) if data["total"] else 0
 
@@ -195,11 +170,9 @@ def get_professor_session_analytics(session_id):
             "difficulty": diff
         })
 
-    # =========================
-    # STUDENTS
-    # =========================
     student_list = []
 
+    # per-student performance
     for sid, data in students.items():
         acc = (data["correct"] / data["attempts"] * 100) if data["attempts"] else 0
         user_obj = User.query.get(sid)
@@ -210,9 +183,6 @@ def get_professor_session_analytics(session_id):
             "accuracy": round(acc, 2)
         })
 
-    # =========================
-    # PARTICIPATION
-    # =========================
     total_students = db.session.query(func.count(Enrollment.id))\
         .filter(Enrollment.course_id == course.id)\
         .scalar() or 0
@@ -222,9 +192,7 @@ def get_professor_session_analytics(session_id):
         if total_students else 0
     )
 
-    # =========================
-    # RESPONSE
-    # =========================
+    # final structured analytics response
     return jsonify({
         "header": {
             "course_name": course.course_name,
@@ -247,9 +215,8 @@ def get_professor_session_analytics(session_id):
         }
     })
 
-# =====================================================
-# 🔹 STUDENT SESSIONS (FOR DROPDOWN)
-# =====================================================
+
+# student: list sessions they are part of
 @analytics_bp.route("/student/sessions", methods=["GET"])
 @jwt_required()
 def get_student_sessions():
@@ -260,7 +227,6 @@ def get_student_sessions():
     if not user or user.role != "student":
         return jsonify({"error": "Access denied"}), 403
 
-    # Get sessions where student is enrolled
     sessions = (
         db.session.query(Session)
         .join(Course)
@@ -279,9 +245,8 @@ def get_student_sessions():
         for s in sessions
     ])
 
-# =====================================================
-# 🔹 STUDENT SESSION ANALYTICS
-# =====================================================
+
+# student: analytics for a specific session
 @analytics_bp.route("/student/session/<int:session_id>", methods=["GET"])
 @jwt_required()
 def get_student_session_analytics(session_id):
@@ -296,9 +261,7 @@ def get_student_session_analytics(session_id):
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
-    # =========================
-    # FETCH STUDENT ANSWERS
-    # =========================
+    # fetch only this student's answers
     rows = db.session.query(
         SessionPartition.partition_index,
         Question.id.label("question_id"),
@@ -317,17 +280,11 @@ def get_student_session_analytics(session_id):
         StudentAnswer.student_id == user.id
     ).all()
 
-    # =========================
-    # BASIC STATS
-    # =========================
     total = len(rows)
     correct = sum(1 for r in rows if r.is_correct)
 
     accuracy = (correct / total * 100) if total else 0
 
-    # =========================
-    # PARTITION TREND
-    # =========================
     partitions = defaultdict(lambda: {"total": 0, "correct": 0})
 
     for r in rows:
@@ -355,11 +312,9 @@ def get_student_session_analytics(session_id):
             "status": status
         })
 
-    # =========================
-    # QUESTIONS (PERSONAL VIEW)
-    # =========================
     questions = []
 
+    # per-question personal result
     for i, r in enumerate(rows):
         questions.append({
             "question": r.question_text,
@@ -368,9 +323,7 @@ def get_student_session_analytics(session_id):
             "is_correct": r.is_correct
         })
 
-    # =========================
-    # CLASS AVERAGE (OPTIONAL BUT POWERFUL)
-    # =========================
+    # class average for comparison
     all_answers = db.session.query(StudentAnswer)\
         .join(Question)\
         .join(Quiz)\
@@ -383,9 +336,6 @@ def get_student_session_analytics(session_id):
 
     class_avg = (correct_all / total_all * 100) if total_all else 0
 
-    # =========================
-    # RESPONSE
-    # =========================
     return jsonify({
         "header": {
             "course_name": session.course.course_name,
@@ -402,6 +352,8 @@ def get_student_session_analytics(session_id):
         "questions": questions
     })
 
+
+# student: overall analytics across all sessions
 @analytics_bp.route("/student/me", methods=["GET"])
 @jwt_required()
 def get_student_overall_analytics():
@@ -412,9 +364,7 @@ def get_student_overall_analytics():
     if not user or user.role != "student":
         return jsonify({"error": "Access denied"}), 403
 
-    # =========================
-    # ALL ANSWERS BY STUDENT
-    # =========================
+    # all answers by this student across sessions
     rows = db.session.query(
         Session.id.label("session_id"),
         Course.course_name,
@@ -435,26 +385,21 @@ def get_student_overall_analytics():
         StudentAnswer.student_id == user.id
     ).all()
 
-    # =========================
-    # AGGREGATE OVERALL
-    # =========================
     total = len(rows)
     correct = sum(1 for r in rows if r.is_correct)
 
     overall_accuracy = (correct / total * 100) if total else 0
 
-    # =========================
-    # SESSION-WISE RESULTS
-    # =========================
     session_map = {}
 
+    # aggregate per session
     for r in rows:
         sid = r.session_id
 
         if sid not in session_map:
             session_map[sid] = {
                 "course_name": r.course_name,
-                "date": r.created_at.isoformat(),  # IMPORTANT FIX
+                "date": r.created_at.isoformat(),
                 "score": 0,
                 "total": 0
             }
@@ -464,13 +409,8 @@ def get_student_overall_analytics():
             session_map[sid]["score"] += 1
 
     sessions = list(session_map.values())
-
-    # sort latest first
     sessions.sort(key=lambda x: x["date"], reverse=True)
 
-    # =========================
-    # TREND (FOR LINE CHART)
-    # =========================
     trend = []
 
     for s in sessions:
@@ -480,28 +420,19 @@ def get_student_overall_analytics():
             "accuracy": round(acc, 2)
         })
 
-    # =========================
-    # PARTICIPATION
-    # =========================
     total_sessions = len(set(r.session_id for r in rows))
     participation_rate = 100 if total_sessions > 0 else 0
 
-    # =========================
-    # GLOBAL CLASS AVERAGE
-    # =========================
+    # global class average across all students
     all_answers = db.session.query(StudentAnswer).all()
-
     total_all = len(all_answers)
     correct_all = sum(1 for a in all_answers if a.is_correct)
 
     class_avg = (correct_all / total_all * 100) if total_all else 0
 
-    # =========================
-    # SUBJECT PERFORMANCE (COURSE-WISE)
-    # =========================
     subject_map = {}
 
-    # Student data
+    # student performance per subject
     for r in rows:
         key = r.course_name
 
@@ -517,7 +448,7 @@ def get_student_overall_analytics():
         if r.is_correct:
             subject_map[key]["you_correct"] += 1
 
-    # Class data
+    # class performance per subject
     all_rows = db.session.query(
         Course.course_name,
         StudentAnswer.is_correct
@@ -560,9 +491,6 @@ def get_student_overall_analytics():
             "class_avg": round(class_acc, 2)
         })
 
-    # =========================
-    # FINAL RESPONSE
-    # =========================
     return jsonify({
         "overall_accuracy": round(overall_accuracy, 2),
         "participation_rate": participation_rate,
@@ -571,3 +499,43 @@ def get_student_overall_analytics():
         "class_avg": round(class_avg, 2),
         "subject_performance": subject_performance
     })
+
+# FORMULAS
+
+# 1. Average Accuracy (Session Level)
+# avg_accuracy = (total_correct / total_answers) * 100
+
+# 2. Student Accuracy
+# student_accuracy = (correct_answers / total_attempts) * 100
+
+# 3. Partition-wise Accuracy (Trend)
+# partition_accuracy = (correct_answers_in_partition / total_answers_in_partition) * 100
+
+# 4. Question Accuracy
+# question_accuracy = (correct_responses / total_responses) * 100
+
+# 5. Question Difficulty Classification
+# if accuracy >= 75 → "easy"
+# elif accuracy >= 40 → "medium"
+# else → "hard"
+
+# 6. Weak Topic Detection (Partition Level)
+# if accuracy < 40 → "weak"
+# elif accuracy < 70 → "medium"
+# else → "strong"
+
+# 7. Participation Rate
+# participation_rate = (students_participated / total_students) * 100
+
+# 8. Average Attempts Per Student
+# avg_attempts = total_answers / students_participated
+
+# 9. Class Average Accuracy
+# class_avg = (total_correct_all_students / total_answers_all_students) * 100
+
+# 10. Overall Student Accuracy (Across Sessions)
+# overall_accuracy = (total_correct / total_attempts) * 100
+
+# 11. Subject-wise Performance
+# student_subject_accuracy = (student_correct / student_total) * 100
+# class_subject_accuracy = (class_correct / class_total) * 100

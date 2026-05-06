@@ -15,27 +15,22 @@ from app.services.whisper_service import transcribe_audio
 from app.services.transcript_service import store_segment
 
 
-transcript_bp = Blueprint("transcripts", __name__)
+transcript_bp = Blueprint("transcripts", __name__)  # transcript route group
 
-# Directory where uploaded audio files are temporarily stored
-UPLOAD_FOLDER = "recordings"
+UPLOAD_FOLDER = "recordings"  # temp storage for audio files
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Thread pool to limit concurrent background processing
-executor = ThreadPoolExecutor(max_workers=4)
+executor = ThreadPoolExecutor(max_workers=4)  # limits parallel processing
 
-
+# background task: convert + transcribe + store + emit
 def process_audio_chunk(app, filepath, partition_id, session_id):
 
-    # Run inside Flask app context for DB and config access
-    with app.app_context():
+    with app.app_context():  # required for DB access in background thread
 
-        # Convert webm file path to wav path
-        wav_path = filepath.replace(".webm", ".wav")
+        wav_path = filepath.replace(".webm", ".wav")  # convert to wav
 
         try:
-
-            # Convert audio to 16kHz mono WAV using FFmpeg (required for Whisper)
+            # convert to 16kHz mono wav (Whisper requirement)
             result = subprocess.run(
                 [
                     "ffmpeg",
@@ -49,24 +44,21 @@ def process_audio_chunk(app, filepath, partition_id, session_id):
                 capture_output=True
             )
 
-            # Check if conversion succeeded
             if not os.path.exists(wav_path):
                 print("FFmpeg failed:")
                 print(result.stderr.decode())
                 return
 
-            # Transcribe audio using Whisper
-            text = transcribe_audio(wav_path)
+            text = transcribe_audio(wav_path)  # STT using Whisper
 
-            # Store transcript segment in database
-            segment = store_segment(partition_id, text)
+            segment = store_segment(partition_id, text)  # save transcript chunk
 
             print("\n==============================")
             print("TRANSCRIPT SEGMENT")
             print(text)
             print("==============================\n")
 
-            # Emit transcript to frontend in real-time
+            # push to frontend via socket
             socketio.emit(
                 "transcript_segment",
                 {
@@ -77,65 +69,54 @@ def process_audio_chunk(app, filepath, partition_id, session_id):
             )
 
         except Exception:
-            # Log any errors during processing
             print("Audio processing error:")
-            traceback.print_exc()
+            traceback.print_exc()  # debug errors
 
         finally:
-
-            # Cleanup original uploaded file
+            # cleanup temp files
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-            # Cleanup converted wav file
             if os.path.exists(wav_path):
                 os.remove(wav_path)
-
 
 @transcript_bp.route("/upload", methods=["POST"])
 def upload_audio():
 
-    # Debug logs for incoming request
+    # debug logs (useful during dev)
     print("\n===== UPLOAD DEBUG =====")
     print("FORM:", request.form)
     print("FILES:", request.files)
     print("========================")
 
-    # Get session ID from request
-    session_id = request.form.get("session_id")
+    session_id = request.form.get("session_id")  # session identifier
 
-    # Validate session ID presence
     if not session_id or session_id == "null":
         return jsonify({"error": "invalid session_id"}), 400
 
-    # Convert session ID to integer
     try:
         session_id = int(session_id)
     except ValueError:
         return jsonify({"error": "invalid session_id"}), 400
 
-    # Ensure audio file is present
     if "audio" not in request.files:
         return jsonify({"error": "audio required"}), 400
 
     audio = request.files["audio"]
 
-    # Fetch session from database
-    session = Session.query.get(session_id)
+    session = Session.query.get(session_id)  # fetch session
 
     print("SESSION:", session)
 
-    # Validate session existence
     if not session:
         return jsonify({"error": "session not found"}), 404
 
-    # Ensure session is active and partition is set
+    # ensure session is active and partition is running
     if session.status != "active" or not session.current_partition_index:
         return jsonify({"error": "session not active"}), 400
 
     print("CURRENT PARTITION INDEX:", session.current_partition_index)
 
-    # Fetch current active partition
     partition = SessionPartition.query.filter_by(
         session_id=session_id,
         partition_index=session.current_partition_index
@@ -143,25 +124,21 @@ def upload_audio():
 
     print("PARTITION:", partition)
 
-    # Validate partition existence
     if not partition:
         return jsonify({"error": "no active partition"}), 400
 
-    # Determine file extension
     ext = "webm"
     if audio.filename and "." in audio.filename:
-        ext = audio.filename.split(".")[-1]
+        ext = audio.filename.split(".")[-1]  # preserve extension
 
-    # Generate unique filename
-    filename = f"{uuid.uuid4()}.{ext}"
+    filename = f"{uuid.uuid4()}.{ext}"  # unique file name
     filepath = os.path.join(UPLOAD_FOLDER, filename)
 
-    # Save uploaded file locally
-    audio.save(filepath)
+    audio.save(filepath)  # save chunk locally
 
-    app = current_app._get_current_object()
+    app = current_app._get_current_object()  # get actual Flask app instance
 
-    # Submit processing task to thread pool (non-blocking)
+    # async processing (prevents request blocking)
     executor.submit(
         process_audio_chunk,
         app,
@@ -171,5 +148,5 @@ def upload_audio():
     )
 
     return jsonify({
-        "message": "chunk received"
+        "message": "chunk received"  # immediate response while processing runs
     })

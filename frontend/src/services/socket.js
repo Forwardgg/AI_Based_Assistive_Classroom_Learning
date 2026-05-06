@@ -7,9 +7,7 @@ const socket = io("http://localhost:5000", {
   autoConnect: true,
 });
 
-// =========================
 // CONNECTION DEBUG
-// =========================
 socket.on("connect", () => {
   console.log("[SOCKET CONNECTED]", {
     id: socket.id,
@@ -39,9 +37,8 @@ socket.on("reconnect", (attempt) => {
   });
 });
 
-// =========================
-// 🔥 GLOBAL EVENT DEBUGGER
-// =========================
+
+//  GLOBAL EVENT DEBUGGER
 socket.onAny((event, ...args) => {
   console.log("[SOCKET EVENT]", {
     event,

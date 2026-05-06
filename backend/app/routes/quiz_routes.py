@@ -6,22 +6,20 @@ from app.models.quiz import Quiz
 from app.models.question import Question
 from app.models.student_answer import StudentAnswer
 
-quiz_bp = Blueprint("quiz_bp", __name__)
+quiz_bp = Blueprint("quiz_bp", __name__)  # quiz route group
 
 
-# =========================
 # GET QUIZ FOR PARTITION
-# =========================
 @quiz_bp.route("/partition/<int:partition_id>", methods=["GET"])
 @jwt_required()
 def get_quiz(partition_id):
 
-    quiz = Quiz.query.filter_by(partition_id=partition_id).first()
+    quiz = Quiz.query.filter_by(partition_id=partition_id).first()  # fetch quiz for this partition
 
     if not quiz:
         return jsonify({"message": "Quiz not found"}), 404
 
-    questions = Question.query.filter_by(quiz_id=quiz.id).all()
+    questions = Question.query.filter_by(quiz_id=quiz.id).all()  # fetch all questions
 
     return jsonify({
         "quiz_id": quiz.id,
@@ -35,35 +33,33 @@ def get_quiz(partition_id):
                     "C": q.option_c,
                     "D": q.option_d
                 },
-                "correct": q.correct_option
+                "correct": q.correct_option  # correct answer included
             }
             for q in questions
         ]
     })
 
 
-# =========================
 # SUBMIT ANSWERS
-# =========================
 @quiz_bp.route("/submit", methods=["POST"])
 @jwt_required()
 def submit_answers():
 
     data = request.get_json()
-    answers = data.get("answers", [])
+    answers = data.get("answers", [])  # list of submitted answers
 
-    user_id = int(get_jwt_identity())
+    user_id = int(get_jwt_identity())  # current student id
 
     results = []
 
     for ans in answers:
 
-        question = Question.query.get(ans["question_id"])
+        question = Question.query.get(ans["question_id"])  # fetch question
 
         if not question:
-            continue
+            continue  # skip invalid question
 
-        is_correct = question.correct_option == ans["selected_option"]
+        is_correct = question.correct_option == ans["selected_option"]  # evaluate answer
 
         results.append(is_correct)
 
@@ -72,11 +68,11 @@ def submit_answers():
             student_id=user_id,
             selected_option=ans["selected_option"],
             is_correct=is_correct
-        ))
+        ))  # store student response
 
-    db.session.commit()
+    db.session.commit()  # save all answers
 
-    score = sum(results)
+    score = sum(results)  # count correct answers
 
     return jsonify({
         "score": score,
