@@ -1,3 +1,5 @@
+// frontend/src/features/quiz/QuizModal.jsx
+
 import { useEffect, useState } from "react";
 import api from "../../../src/services/api";
 import "./QuizModal.css";

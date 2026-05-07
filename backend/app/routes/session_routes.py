@@ -14,15 +14,16 @@ from app.models.lecture_notes import LectureNotes
 from app.services.transcript_service import finalize_partition_transcript
 from app.services.quiz_service import generate_quiz_for_partition
 
+from datetime import datetime
 import time
 
-session_bp = Blueprint("session_bp", __name__)  # session route group
+session_bp = Blueprint("session_bp", __name__)
 
 session_controls = {}  # runtime flags for pause/stop state
 
 
 def run_quiz_with_context(app, partition_id, session_id):
-    with app.app_context():  # required for DB in background thread
+    with app.app_context():
         generate_quiz_for_partition(partition_id, session_id)
 
 
@@ -32,7 +33,6 @@ def emit_session_state(session_id, room):
     if not session:
         return
 
-    # push current session state to frontend
     socketio.emit(
         "session_state",
         {
@@ -46,11 +46,14 @@ def emit_session_state(session_id, room):
         room=room
     )
 
+
+# ─────────────────────────────────────────────
+# GET /course/<course_id>/active
+# ─────────────────────────────────────────────
 @session_bp.route("/course/<int:course_id>/active", methods=["GET"])
 @jwt_required()
 def get_active_session(course_id):
 
-    # fetch latest active/paused session
     session = (
         Session.query
         .filter_by(course_id=course_id)
@@ -62,7 +65,7 @@ def get_active_session(course_id):
     if not session:
         return jsonify({"exists": False}), 200
 
-    # fix broken paused state (edge case after restart)
+    # fix broken paused state after restart
     if session.status == "paused" and session.partition_end_time is None:
         session.status = "stopped"
         session.current_partition_index = None
@@ -77,6 +80,49 @@ def get_active_session(course_id):
         "status": session.status
     }), 200
 
+
+# ─────────────────────────────────────────────
+# GET /course/<course_id>/scheduled
+# Returns all sessions with status="scheduled" for a course,
+# ordered by scheduled_at (nulls last), then created_at.
+# ─────────────────────────────────────────────
+@session_bp.route("/course/<int:course_id>/scheduled", methods=["GET"])
+@jwt_required()
+def get_scheduled_sessions(course_id):
+
+    claims = get_jwt()
+    current_user_id = int(get_jwt_identity())
+
+    course = Course.query.get(course_id)
+    if not course:
+        return jsonify({"message": "Course not found"}), 404
+
+    if claims.get("role") == "professor" and course.professor_id != current_user_id:
+        return jsonify({"message": "Unauthorized"}), 403
+
+    sessions = (
+        Session.query
+        .filter_by(course_id=course_id, status="scheduled")
+        .order_by(
+            Session.scheduled_at.asc().nullslast(),
+            Session.created_at.asc()
+        )
+        .all()
+    )
+
+    result = []
+    for s in sessions:
+        data = s.to_dict()
+        data["partitions"] = [p.to_dict() for p in s.partitions]
+        result.append(data)
+
+    return jsonify({"sessions": result}), 200
+
+
+# ─────────────────────────────────────────────
+# POST /
+# Create a new scheduled session
+# ─────────────────────────────────────────────
 @session_bp.route("", methods=["POST"])
 @jwt_required()
 def create_session():
@@ -89,45 +135,62 @@ def create_session():
 
     data = request.get_json() or {}
 
-    course_id = data.get("course_id")
+    course_id      = data.get("course_id")
     duration_minutes = data.get("duration_minutes")
-    partitions = data.get("partitions")
+    partitions     = data.get("partitions")
+    name           = data.get("name")          # optional session name
+    scheduled_at   = data.get("scheduled_at")  # optional ISO string
 
     if not course_id or not duration_minutes or not partitions:
         return jsonify({"message": "Missing required fields"}), 400
 
     course = Course.query.get(course_id)
-
     if not course:
         return jsonify({"message": "Course not found"}), 404
 
     if course.professor_id != current_user_id:
         return jsonify({"message": "Unauthorized"}), 403
 
-    # create session
+    # parse scheduled_at if provided
+    parsed_scheduled_at = None
+    if scheduled_at:
+        try:
+            parsed_scheduled_at = datetime.fromisoformat(scheduled_at)
+        except ValueError:
+            return jsonify({"message": "Invalid scheduled_at format. Use ISO 8601."}), 400
+
     new_session = Session(
         course_id=course_id,
         duration_minutes=duration_minutes,
-        status="scheduled"
+        status="scheduled",
+        name=name or None,
+        scheduled_at=parsed_scheduled_at
     )
 
     db.session.add(new_session)
-    db.session.flush()  # get id before commit
+    db.session.flush()
 
-    # create partitions for session
     for index, p in enumerate(partitions, start=1):
         partition = SessionPartition(
             session_id=new_session.id,
             partition_index=index,
             start_minute=p["start_minute"],
-            end_minute=p["end_minute"]
+            end_minute=p["end_minute"],
+            name=p.get("name") or None   # optional partition name
         )
         db.session.add(partition)
 
     db.session.commit()
 
-    return jsonify({"session": new_session.to_dict()}), 201
+    result = new_session.to_dict()
+    result["partitions"] = [p.to_dict() for p in new_session.partitions]
 
+    return jsonify({"session": result}), 201
+
+
+# ─────────────────────────────────────────────
+# POST /<session_id>/start
+# ─────────────────────────────────────────────
 @session_bp.route("/<int:session_id>/start", methods=["POST"])
 @jwt_required()
 def start_session(session_id):
@@ -137,7 +200,6 @@ def start_session(session_id):
     if not session or session.status != "scheduled":
         return jsonify({"message": "Cannot start session"}), 400
 
-    # prevent multiple active sessions for same professor
     existing = (
         Session.query
         .join(Course, Session.course_id == Course.id)
@@ -165,15 +227,14 @@ def start_session(session_id):
 
     app = current_app._get_current_object()
 
-    # start background timer loop
-    socketio.start_background_task(
-        run_session_timer,
-        app,
-        session_id
-    )
+    socketio.start_background_task(run_session_timer, app, session_id)
 
     return jsonify({"message": "Session started"}), 200
 
+
+# ─────────────────────────────────────────────
+# POST /<session_id>/pause
+# ─────────────────────────────────────────────
 @session_bp.route("/<int:session_id>/pause", methods=["POST"])
 @jwt_required()
 def pause_session(session_id):
@@ -187,12 +248,16 @@ def pause_session(session_id):
     db.session.commit()
 
     session_controls.setdefault(session_id, {})
-    session_controls[session_id]["paused"] = True  # set pause flag
+    session_controls[session_id]["paused"] = True
 
     emit_session_state(session_id, f"session_{session_id}")
 
     return jsonify({"message": "Paused"}), 200
 
+
+# ─────────────────────────────────────────────
+# POST /<session_id>/resume
+# ─────────────────────────────────────────────
 @session_bp.route("/<int:session_id>/resume", methods=["POST"])
 @jwt_required()
 def resume_session(session_id):
@@ -206,12 +271,16 @@ def resume_session(session_id):
     db.session.commit()
 
     session_controls.setdefault(session_id, {})
-    session_controls[session_id]["paused"] = False  # clear pause flag
+    session_controls[session_id]["paused"] = False
 
     emit_session_state(session_id, f"session_{session_id}")
 
     return jsonify({"message": "Resumed"}), 200
 
+
+# ─────────────────────────────────────────────
+# POST /<session_id>/stop
+# ─────────────────────────────────────────────
 @session_bp.route("/<int:session_id>/stop", methods=["POST"])
 @jwt_required()
 def stop_session(session_id):
@@ -221,7 +290,6 @@ def stop_session(session_id):
     if not session:
         return jsonify({"message": "Session not found"}), 404
 
-    # reset session state
     session.status = "stopped"
     session.current_partition_index = None
     session.partition_start_time = None
@@ -236,6 +304,10 @@ def stop_session(session_id):
 
     return jsonify({"message": "Session stopped"}), 200
 
+
+# ─────────────────────────────────────────────
+# Socket: join_session
+# ─────────────────────────────────────────────
 @socketio.on("join_session")
 def handle_join_session(data):
 
@@ -245,13 +317,16 @@ def handle_join_session(data):
         return
 
     room = f"session_{session_id}"
-
-    join_room(room)  # join socket room
+    join_room(room)
 
     print(f"[SOCKET] Client joined room {room}")
 
-    emit_session_state(session_id, request.sid)  # send current state
+    emit_session_state(session_id, request.sid)
 
+
+# ─────────────────────────────────────────────
+# Background timer loop
+# ─────────────────────────────────────────────
 def run_session_timer(app, session_id):
     with app.app_context():
 
@@ -274,7 +349,6 @@ def run_session_timer(app, session_id):
             if duration_seconds <= 0:
                 continue
 
-            # ✅ check stopped before starting each partition too
             if session_controls.get(session_id, {}).get("stopped"):
                 return
 
@@ -295,17 +369,15 @@ def run_session_timer(app, session_id):
             while True:
                 ctrl = session_controls.get(session_id, {})
 
-                # ✅ check in-memory flags FIRST — no DB query needed
                 if ctrl.get("stopped"):
                     return
 
                 if ctrl.get("paused"):
                     if pause_start is None:
                         pause_start = int(time.time())
-                    socketio.sleep(0.2)  # ✅ reduced from 1s
+                    socketio.sleep(0.2)
                     continue
 
-                # resume after pause
                 if pause_start is not None:
                     pause_duration = int(time.time()) - pause_start
                     end_time += pause_duration
@@ -318,9 +390,8 @@ def run_session_timer(app, session_id):
                 if end_time - now <= 0:
                     break
 
-                socketio.sleep(0.2)  # ✅ reduced from 1s
+                socketio.sleep(0.2)
 
-            # ✅ check again before doing post-partition work
             if session_controls.get(session_id, {}).get("stopped"):
                 return
 
@@ -344,11 +415,10 @@ def run_session_timer(app, session_id):
 
             emit_session_state(session_id, room)
 
-            # wait for resume — ✅ also check stopped here
             while session_controls.get(session_id, {}).get("paused"):
                 if session_controls.get(session_id, {}).get("stopped"):
                     return
-                socketio.sleep(0.2)  # ✅ reduced from 1s
+                socketio.sleep(0.2)
 
         session.status = "completed"
         session.current_partition_index = None
@@ -358,6 +428,10 @@ def run_session_timer(app, session_id):
 
         emit_session_state(session_id, room)
 
+
+# ─────────────────────────────────────────────
+# GET /<session_id>
+# ─────────────────────────────────────────────
 @session_bp.route("/<int:session_id>", methods=["GET"])
 @jwt_required()
 def get_session(session_id):
@@ -369,12 +443,18 @@ def get_session(session_id):
 
     return jsonify({
         "id": session.id,
+        "name": session.name,
+        "scheduled_at": session.scheduled_at.isoformat() if session.scheduled_at else None,
         "status": session.status,
         "current_partition_index": session.current_partition_index,
         "start_time": session.partition_start_time,
         "end_time": session.partition_end_time
     }), 200
 
+
+# ─────────────────────────────────────────────
+# POST /<session_id>/generate-quiz
+# ─────────────────────────────────────────────
 @session_bp.route("/<int:session_id>/generate-quiz", methods=["POST"])
 @jwt_required()
 def generate_quiz(session_id):
@@ -392,7 +472,6 @@ def generate_quiz(session_id):
 
     app = current_app._get_current_object()
 
-    # run quiz generation asynchronously
     socketio.start_background_task(
         run_quiz_with_context,
         app,
@@ -402,6 +481,10 @@ def generate_quiz(session_id):
 
     return jsonify({"message": "Quiz generation started"}), 200
 
+
+# ─────────────────────────────────────────────
+# GET /<session_id>/notes
+# ─────────────────────────────────────────────
 @session_bp.route("/<int:session_id>/notes", methods=["GET"])
 @jwt_required()
 def get_session_notes(session_id):
@@ -416,6 +499,10 @@ def get_session_notes(session_id):
         "summary_text": notes.summary_text
     }), 200
 
+
+# ─────────────────────────────────────────────
+# POST /<session_id>/notes
+# ─────────────────────────────────────────────
 @session_bp.route("/<int:session_id>/notes", methods=["POST"])
 @jwt_required()
 def generate_session_notes(session_id):
@@ -436,7 +523,6 @@ def generate_session_notes(session_id):
     if session.course.professor_id != user_id:
         return jsonify({"message": "Unauthorized"}), 403
 
-    # fetch all transcripts for session
     transcripts = Transcript.query.join(
         SessionPartition,
         Transcript.partition_id == SessionPartition.id
@@ -449,8 +535,8 @@ def generate_session_notes(session_id):
 
     full_text = "\n".join([t.transcript_text for t in transcripts])
 
-    cleaned = clean_transcript(full_text)  # remove noise
-    summary = generate_summary(cleaned)  # AI summary
+    cleaned = clean_transcript(full_text)
+    summary = generate_summary(cleaned)
 
     if not summary:
         return jsonify({"message": "Failed to generate notes"}), 500
@@ -469,6 +555,10 @@ def generate_session_notes(session_id):
 
     return jsonify({"message": "Notes generated"}), 201
 
+
+# ─────────────────────────────────────────────
+# PUT /<session_id>/notes
+# ─────────────────────────────────────────────
 @session_bp.route("/<int:session_id>/notes", methods=["PUT"])
 @jwt_required()
 def update_session_notes(session_id):
@@ -491,8 +581,7 @@ def update_session_notes(session_id):
         return jsonify({"message": "Notes not found"}), 404
 
     data = request.get_json() or {}
-
-    notes.summary_text = data.get("summary_text", notes.summary_text)  # update text
+    notes.summary_text = data.get("summary_text", notes.summary_text)
 
     db.session.commit()
 

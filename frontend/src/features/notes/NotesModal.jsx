@@ -1,3 +1,5 @@
+// frontend/src/features/notes/NotesModal.jsx
+
 import { useState, useEffect } from "react";
 import "./NotesModal.css";
 import { updateNotes } from "../lectures/sessionAPI";

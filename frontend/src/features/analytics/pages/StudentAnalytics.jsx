@@ -1,3 +1,5 @@
+// frontend/src/features/analytics/pages/StudentAnalytics.jsx
+
 import React, { useEffect, useState } from 'react';
 import { 
   Search, ChevronDown, Filter, HelpCircle, 

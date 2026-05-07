@@ -16,11 +16,14 @@ class SessionPartition(db.Model):
     start_minute = db.Column(db.Integer, nullable=False)
     end_minute = db.Column(db.Integer, nullable=False)
 
+    name = db.Column(db.String(120), nullable=True)
+
     def to_dict(self):
         return {
             "id": self.id,
             "session_id": self.session_id,
             "partition_index": self.partition_index,
             "start_minute": self.start_minute,
-            "end_minute": self.end_minute
+            "end_minute": self.end_minute,
+            "name": self.name
         }

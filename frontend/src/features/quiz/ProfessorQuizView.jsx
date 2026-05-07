@@ -1,3 +1,5 @@
+// frontend/src/features/quiz/ProfessorQuizView.jsx
+
 import { useEffect, useState } from "react";
 import api from "../../services/api";
 import "./ProfessorQuizView.css";

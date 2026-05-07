@@ -1,3 +1,5 @@
+// frontend/src/features/courses/pages/CourseDetails.jsx
+
 import React, { useEffect, useState, useContext } from "react";
 import {
   Trash2,
@@ -5,6 +7,7 @@ import {
   BarChart2,
   Copy,
   Check,
+  CalendarClock,
 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { getCourses } from "../courseAPI";
@@ -12,37 +15,53 @@ import api from "../../../services/api";
 import { AuthContext } from "../../auth/AuthContext";
 import ProfessorQuizView from "../../quiz/ProfessorQuizView";
 import NotesModal from "../../notes/NotesModal";
-import {
-  getNotes,
-  generateNotes,
-} from "../../lectures/sessionAPI";
+import { getNotes, generateNotes } from "../../lectures/sessionAPI";
 
 import "./CourseDetails.css";
 
 const CourseDetails = () => {
   const { courseId } = useParams();
-  const { user } = useContext(AuthContext);
+  const { user }     = useContext(AuthContext);
 
-  const isStudent = user?.role === "student";
+  const isStudent   = user?.role === "student";
   const isProfessor = user?.role === "professor";
 
-  const [course, setCourse] = useState(null);
+  const [course, setCourse]   = useState(null);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedPartition, setSelectedPartition] = useState(null);
-  const [showQuiz, setShowQuiz] = useState(false);
+  const [showQuiz, setShowQuiz]                   = useState(false);
 
-  // ✅ COPY STATE
   const [copied, setCopied] = useState(false);
 
-  // ✅ NOTES STATE
-  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesOpen, setNotesOpen]               = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
-  const [notesData, setNotesData] = useState(null);
+  const [notesData, setNotesData]               = useState(null);
 
-  // ✅ LOADING STATE
   const [generatingNotesId, setGeneratingNotesId] = useState(null);
+
+  // =========================
+  // UTILITIES
+  // =========================
+  const formatScheduledAt = (iso) => {
+    if (!iso) return null;
+    return new Date(iso).toLocaleString(undefined, {
+      weekday: "short",
+      month:   "short",
+      day:     "numeric",
+      hour:    "2-digit",
+      minute:  "2-digit",
+    });
+  };
+
+  // Derive a display title for a session
+  const sessionTitle = (session) =>
+    session.name ? session.name : `Session #${session.id}`;
+
+  // Derive a display label for a partition
+  const partitionLabel = (p) =>
+    p.name ? p.name : `Part ${p.partition_index}`;
 
   // =========================
   // FETCH DATA
@@ -50,12 +69,8 @@ const CourseDetails = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await getCourses();
-
-      const found = res.data.find(
-        (c) => c.id === parseInt(courseId)
-      );
-
+      const res   = await getCourses();
+      const found = res.data.find((c) => c.id === parseInt(courseId));
       setCourse(found);
 
       const sessionRes = await api.get(`/courses/${courseId}/sessions`);
@@ -76,31 +91,25 @@ const CourseDetails = () => {
   // =========================
   const handleCopy = async () => {
     if (!course) return;
-
     try {
       await navigator.clipboard.writeText(course.class_code);
       setCopied(true);
-
-      setTimeout(() => {
-        setCopied(false);
-      }, 1500);
+      setTimeout(() => setCopied(false), 1500);
     } catch (err) {
       console.error("Copy failed", err);
     }
   };
 
   // =========================
-  // VIEW NOTES
+  // NOTES
   // =========================
   const handleViewNotes = async (sessionId) => {
     try {
       const res = await getNotes(sessionId);
-
       if (!res.data.exists) {
         alert("No notes available yet");
         return;
       }
-
       setNotesData(res.data);
       setSelectedSessionId(sessionId);
       setNotesOpen(true);
@@ -109,27 +118,16 @@ const CourseDetails = () => {
     }
   };
 
-  // =========================
-  // GENERATE NOTES
-  // =========================
   const handleGenerateNotes = async (sessionId) => {
     try {
       setGeneratingNotesId(sessionId);
-
       await generateNotes(sessionId);
-
       await handleViewNotes(sessionId);
     } catch (err) {
       const msg = err?.response?.data?.message;
-
-      if (msg === "No transcript available") {
-        alert("Session is empty");
-      } else if (msg === "Notes already generated") {
-        alert("Notes already generated");
-      } else {
-        alert("Failed to generate notes");
-      }
-
+      if (msg === "No transcript available") alert("Session is empty");
+      else if (msg === "Notes already generated") alert("Notes already generated");
+      else alert("Failed to generate notes");
       console.error(err);
     } finally {
       setGeneratingNotesId(null);
@@ -137,18 +135,23 @@ const CourseDetails = () => {
   };
 
   // =========================
-  // DELETE COURSE
+  // DELETE
   // =========================
   const handleDelete = () => {
     alert("Delete functionality not implemented yet");
   };
 
   if (loading) return <p>Loading...</p>;
-  if (!course) return <p>Course not found</p>;
+  if (!course)  return <p>Course not found</p>;
+
+  // Separate scheduled vs non-scheduled sessions for cleaner rendering
+  const scheduledSessions = sessions.filter((s) => s.status === "scheduled");
+  const otherSessions     = sessions.filter((s) => s.status !== "scheduled");
 
   return (
     <div className="container">
-      {/* HEADER */}
+
+      {/* ── HEADER ── */}
       <header className="header">
         <h1>{course.course_name}</h1>
         <p className="semester-text">
@@ -158,16 +161,10 @@ const CourseDetails = () => {
         <div className="course-id-row">
           <span className="course-badge">
             {course.class_code}
-
-            {/* ✅ COPY / TICK ICON */}
             {copied ? (
               <Check size={14} className="icon-copy" />
             ) : (
-              <Copy
-                size={14}
-                className="icon-copy"
-                onClick={handleCopy}
-              />
+              <Copy size={14} className="icon-copy" onClick={handleCopy} />
             )}
           </span>
         </div>
@@ -179,18 +176,62 @@ const CourseDetails = () => {
         )}
       </header>
 
-      {/* SESSIONS */}
-      <div className="sessions-list">
-        {sessions.length === 0 ? (
-          <p>No sessions yet</p>
-        ) : (
-          sessions.map((session) => (
+      {/* ── SCHEDULED SESSIONS ── */}
+      {scheduledSessions.length > 0 && (
+        <div className="sessions-list">
+          <h2 className="section-heading" style={{ marginBottom: 12 }}>
+            <CalendarClock size={18} style={{ marginRight: 6, verticalAlign: "middle" }} />
+            Upcoming Sessions
+          </h2>
+
+          {scheduledSessions.map((session) => (
             <div key={session.id} className="session-card">
               <div className="session-header">
                 <div className="session-title-group">
-                  <h2 className="session-title">
-                    Session #{session.id}
-                  </h2>
+                  <h2 className="session-title">{sessionTitle(session)}</h2>
+                  <span className="status-badge pending">Scheduled</span>
+                </div>
+                <span className="duration-text">
+                  {session.duration_minutes} min
+                </span>
+              </div>
+
+              {session.scheduled_at && (
+                <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 8 }}>
+                  {formatScheduledAt(session.scheduled_at)}
+                </p>
+              )}
+
+              {/* Partition list (read-only for students) */}
+              {session.partitions?.length > 0 && (
+                <div className="parts-container">
+                  {session.partitions.map((p) => (
+                    <div key={p.id} className="part-row">
+                      <span className="part-name">
+                        {partitionLabel(p)}
+                        <span className="part-time">
+                          {" "}· {p.start_minute}–{p.end_minute} min
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── COMPLETED / ACTIVE SESSIONS ── */}
+      <div className="sessions-list">
+        {otherSessions.length === 0 ? (
+          <p>No sessions yet</p>
+        ) : (
+          otherSessions.map((session) => (
+            <div key={session.id} className="session-card">
+              <div className="session-header">
+                <div className="session-title-group">
+                  <h2 className="session-title">{sessionTitle(session)}</h2>
                   <span
                     className={`status-badge ${
                       ["active", "completed"].includes(
@@ -243,10 +284,9 @@ const CourseDetails = () => {
                 {session.partitions?.map((p) => (
                   <div key={p.id} className="part-row">
                     <span className="part-name">
-                      Part {p.partition_index}
+                      {partitionLabel(p)}
                       <span className="part-time">
-                        {" "}
-                        · {p.start_minute} - {p.end_minute} min
+                        {" "}· {p.start_minute}–{p.end_minute} min
                       </span>
                     </span>
 
@@ -267,7 +307,7 @@ const CourseDetails = () => {
         )}
       </div>
 
-      {/* NOTES MODAL */}
+      {/* ── NOTES MODAL ── */}
       <NotesModal
         open={notesOpen}
         onClose={() => setNotesOpen(false)}
@@ -276,7 +316,7 @@ const CourseDetails = () => {
         isProfessor={isProfessor}
       />
 
-      {/* QUIZ VIEW */}
+      {/* ── QUIZ VIEW ── */}
       {showQuiz && (
         <ProfessorQuizView
           partitionId={selectedPartition}

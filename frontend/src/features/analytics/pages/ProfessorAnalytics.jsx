@@ -1,3 +1,5 @@
+// frontend/src/features/analytics/pages/ProfessorAnalytics.jsx
+
 import React, { useEffect, useState } from "react";
 import { 
   Users, 

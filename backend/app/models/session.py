@@ -14,15 +14,17 @@ class Session(db.Model):
         nullable=False
     )
 
+    name = db.Column(db.String(120), nullable=True)
+    scheduled_at = db.Column(db.DateTime, nullable=True)
+
     duration_minutes = db.Column(db.Integer, nullable=False)
 
     status = db.Column(
-        db.Enum("scheduled", "active", "paused", "completed", "stopped",name="session_status"),
+        db.Enum("scheduled", "active", "paused", "completed", "stopped", name="session_status"),
         default="scheduled",
         nullable=False
     )
 
-    # 🔥 ADD THIS
     current_partition_index = db.Column(db.Integer, nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -35,6 +37,7 @@ class Session(db.Model):
         cascade="all, delete-orphan",
         order_by="SessionPartition.partition_index"
     )
+
     partition_start_time = db.Column(db.Integer)
     partition_end_time = db.Column(db.Integer)
 
@@ -42,6 +45,8 @@ class Session(db.Model):
         return {
             "id": self.id,
             "course_id": self.course_id,
+            "name": self.name,
+            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
             "duration_minutes": self.duration_minutes,
             "status": self.status,
             "current_partition_index": self.current_partition_index,

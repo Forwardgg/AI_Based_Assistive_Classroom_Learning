@@ -2,6 +2,12 @@
 
 import api from "../../services/api";
 
+export const createSession = (data) =>
+  api.post("/sessions", data);
+
+export const getScheduledSessions = (courseId) =>
+  api.get(`/sessions/course/${courseId}/scheduled`);
+
 export const startSession = (sessionId) =>
   api.post(`/sessions/${sessionId}/start`);
 

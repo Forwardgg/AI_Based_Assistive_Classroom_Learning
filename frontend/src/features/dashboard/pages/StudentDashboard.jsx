@@ -1,3 +1,5 @@
+// frontend/src/features/dashboard/pages/StudentDashboard.jsx
+
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCourses, joinCourse } from "../../courses/courseAPI";
@@ -11,7 +13,8 @@ import {
   Target, 
   FileText, 
   TrendingUp, 
-  Users 
+  Users,
+  CalendarClock,
 } from "lucide-react";
 
 // --- CHART.JS IMPORTS ---
@@ -55,6 +58,9 @@ const StudentDashboard = () => {
   const [rollNo, setRollNo] = useState("");
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+
+  // Scheduled / upcoming sessions
+  const [scheduledSessions, setScheduledSessions] = useState([]);
   
   // Live Session State
   const [activeCourse, setActiveCourse] = useState(null);
@@ -72,54 +78,44 @@ const StudentDashboard = () => {
   const intervalRef = useRef(null);
 
   // =========================
-  // STATIC CHART DATA
+  // CHART DATA
   // =========================
   const lineData = {
-  labels: analytics?.trend?.map(t =>
-    new Date(t.date).toLocaleDateString()
-  ) || [],
-  datasets: [{
-    label: 'Performance',
-    data: analytics?.trend?.map(t => t.accuracy) || [],
-    borderColor: '#2563eb',
-    backgroundColor: 'rgba(37, 99, 235, 0.05)',
-    fill: true,
-    tension: 0.4,
-    pointRadius: 4,
-    pointBackgroundColor: '#2563eb',
-  }]
-};
+    labels: analytics?.trend?.map(t => new Date(t.date).toLocaleDateString()) || [],
+    datasets: [{
+      label: 'Performance',
+      data: analytics?.trend?.map(t => t.accuracy) || [],
+      borderColor: '#2563eb',
+      backgroundColor: 'rgba(37, 99, 235, 0.05)',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 4,
+      pointBackgroundColor: '#2563eb',
+    }]
+  };
 
   const barData = {
-  labels: analytics?.subject_performance?.map(t => t.topic) || [],
-  datasets: [
-    {
-      label: 'You',
-      data: analytics?.subject_performance?.map(t => t.you) || [],
-      backgroundColor: '#2563eb',
-      borderRadius: 4,
-    },
-    {
-      label: 'Class Avg',
-      data: analytics?.subject_performance?.map(t => t.class_avg) || [],
-      backgroundColor: '#e2e8f0',
-      borderRadius: 4,
-    }
-  ]
-};
+    labels: analytics?.subject_performance?.map(t => t.topic) || [],
+    datasets: [
+      {
+        label: 'You',
+        data: analytics?.subject_performance?.map(t => t.you) || [],
+        backgroundColor: '#2563eb',
+        borderRadius: 4,
+      },
+      {
+        label: 'Class Avg',
+        data: analytics?.subject_performance?.map(t => t.class_avg) || [],
+        backgroundColor: '#e2e8f0',
+        borderRadius: 4,
+      }
+    ]
+  };
 
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    // 1. Add padding to the top so 100% points aren't hugging the container edge
-    layout: {
-      padding: {
-        top: 15,
-        right: 10,
-        left: 5,
-        bottom: 5
-      }
-    },
+    layout: { padding: { top: 15, right: 10, left: 5, bottom: 5 } },
     plugins: { 
       legend: { display: false },
       tooltip: {
@@ -136,11 +132,8 @@ const StudentDashboard = () => {
         ticks: { stepSize: 25, callback: (v) => v + '%' },
         grid: { borderDash: [5, 5], drawBorder: false, color: '#f1f5f9' }
       },
-      x: { 
-        grid: { display: false } 
-      }
+      x: { grid: { display: false } }
     },
-    // 2. Disable clipping so the "top half" of the circles can render
     clip: false 
   };
 
@@ -154,14 +147,48 @@ const StudentDashboard = () => {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  const formatScheduledAt = (iso) => {
+    if (!iso) return null;
+    return new Date(iso).toLocaleString(undefined, {
+      weekday: "short",
+      month:   "short",
+      day:     "numeric",
+      hour:    "2-digit",
+      minute:  "2-digit",
+    });
+  };
+
   // =========================
   // API ACTIONS
   // =========================
+  const fetchScheduledSessions = async (coursesData) => {
+    try {
+      const results = await Promise.all(
+        coursesData.map((course) =>
+          api
+            .get(`/sessions/course/${course.id}/scheduled`)
+            .then((res) =>
+              res.data.sessions.map((s) => ({
+                ...s,
+                course_name: course.course_name,
+                course_id:   course.id,
+              }))
+            )
+            .catch(() => [])
+        )
+      );
+      setScheduledSessions(results.flat());
+    } catch (err) {
+      console.error("Failed to fetch scheduled sessions:", err);
+    }
+  };
+
   const fetchCourses = async () => {
     setLoading(true);
     try {
       const res = await getCourses();
       setCourses(res.data);
+      await fetchScheduledSessions(res.data);
     } catch (err) {
       console.error("Failed to fetch courses:", err);
     } finally {
@@ -193,7 +220,7 @@ const StudentDashboard = () => {
   const restoreSession = async () => {
     try {
       const sessionId = localStorage.getItem("activeSessionId");
-      const courseId = localStorage.getItem("activeCourseId");
+      const courseId  = localStorage.getItem("activeCourseId");
       
       if (!sessionId || !courseId) return;
 
@@ -215,7 +242,6 @@ const StudentDashboard = () => {
     }
   };
 
-  // Initial Load
   useEffect(() => {
     fetchCourses();
     fetchAnalytics();
@@ -247,9 +273,7 @@ const StudentDashboard = () => {
     localStorage.setItem("activeCourseId", courseId);
 
     await syncSessionState(sessionId);
-    setTimeout(() => {
-      syncSessionState(sessionId);
-    }, 300);
+    setTimeout(() => { syncSessionState(sessionId); }, 300);
   };
 
   const resetSession = () => {
@@ -272,14 +296,12 @@ const StudentDashboard = () => {
 
     const handleSessionState = (data) => {
       if (data.session_id !== activeSessionId) return;
-      
       setSessionStatus(data.status);
       setCurrentPartition(data.current_partition_index);
 
       const now = Math.floor(Date.now() / 1000);
       const drift = now - data.server_time;
       const correctedEnd = data.end_time ? data.end_time + drift : null;
-
       setPartitionEndTime(correctedEnd);
     };
 
@@ -300,16 +322,16 @@ const StudentDashboard = () => {
       setTimeout(fetchAnalytics, 3000);
     };
 
-    socket.on("session_state", handleSessionState);
-    socket.on("session_completed", handleCompleted);
-    socket.on("session_stopped", handleStopped);
-    socket.on("quiz_ready", handleQuiz);
+    socket.on("session_state",      handleSessionState);
+    socket.on("session_completed",  handleCompleted);
+    socket.on("session_stopped",    handleStopped);
+    socket.on("quiz_ready",         handleQuiz);
 
     return () => {
-      socket.off("session_state", handleSessionState);
-      socket.off("session_completed", handleCompleted);
-      socket.off("session_stopped", handleStopped);
-      socket.off("quiz_ready", handleQuiz);
+      socket.off("session_state",      handleSessionState);
+      socket.off("session_completed",  handleCompleted);
+      socket.off("session_stopped",    handleStopped);
+      socket.off("quiz_ready",         handleQuiz);
     };
   }, [activeSessionId]);
 
@@ -321,13 +343,11 @@ const StudentDashboard = () => {
 
     const updateTimer = () => {
       const now = Math.floor(Date.now() / 1000);
-      const remaining = partitionEndTime - now;
-      setTimeLeft(Math.max(remaining, 0));
+      setTimeLeft(Math.max(partitionEndTime - now, 0));
     };
 
     updateTimer();
     intervalRef.current = setInterval(updateTimer, 500);
-
     return () => clearInterval(intervalRef.current);
   }, [partitionEndTime, sessionStatus]);
 
@@ -340,10 +360,7 @@ const StudentDashboard = () => {
     
     setJoining(true);
     try {
-      await joinCourse({
-        class_code: classCode,
-        roll_no: rollNo,
-      });
+      await joinCourse({ class_code: classCode, roll_no: rollNo });
       setClassCode("");
       setRollNo("");
       fetchCourses();
@@ -356,14 +373,16 @@ const StudentDashboard = () => {
 
   const activeCourseData = courses.find((c) => c.id === activeCourse);
 
-  if (loading) return <div className="StudentDashboard-root dashboard-container">Loading...</div>;
+  if (loading) return (
+    <div className="StudentDashboard-root dashboard-container">Loading...</div>
+  );
 
   return (
     <div className="StudentDashboard-root">
       <div className="dashboard-container">
         <div className="dashboard-content">
           
-          {/* Hero Section */}
+          {/* ── Hero / Live Session Banner ── */}
           {activeCourseData && sessionStatus && (
             <section className="hero-banner">
               <div>
@@ -383,7 +402,7 @@ const StudentDashboard = () => {
             </section>
           )}
 
-          {/* Join Form */}
+          {/* ── Join Course Form ── */}
           <form className="hero-banner join-form-fix" onSubmit={handleJoinCourse}>
             <input
               value={classCode}
@@ -400,7 +419,44 @@ const StudentDashboard = () => {
             </button>
           </form>
 
-          {/* Course Grid */}
+          {/* ── Upcoming Scheduled Sessions ── */}
+          {scheduledSessions.length > 0 && (
+            <section>
+              <h3 className="section-title">
+                <CalendarClock size={20} /> Upcoming Sessions
+              </h3>
+
+              <div className="course-grid">
+                {scheduledSessions.map((session) => (
+                  <div key={session.id} className="course-card-v2">
+                    <div className="card-top">
+                      <h4 className="course-name">
+                        {session.name || "Upcoming Session"}
+                      </h4>
+                      <span className="status-badge inactive">Scheduled</span>
+                    </div>
+
+                    <p className="instructor-name">{session.course_name}</p>
+
+                    {session.scheduled_at ? (
+                      <p className="instructor-name" style={{ fontSize: "0.8rem" }}>
+                        {formatScheduledAt(session.scheduled_at)}
+                      </p>
+                    ) : (
+                      <p className="instructor-name" style={{ fontSize: "0.8rem" }}>
+                        {session.duration_minutes} min
+                        {session.partitions?.length
+                          ? ` · ${session.partitions.length} parts`
+                          : ""}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ── My Courses ── */}
           <section>
             <h3 className="section-title">
               <BookOpen size={20} /> My Courses
@@ -438,7 +494,9 @@ const StudentDashboard = () => {
 
                       <button
                         className="btn-action-v2"
-                        onClick={() => navigate(`/dashboard/student/courses/${course.id}`)}
+                        onClick={() =>
+                          navigate(`/dashboard/student/courses/${course.id}`)
+                        }
                       >
                         <FileText size={16} /> Notes
                       </button>
@@ -456,7 +514,7 @@ const StudentDashboard = () => {
             </div>
           </section>
 
-          {/* Bottom Analytics Grid */}
+          {/* ── Bottom Analytics Grid ── */}
           <div className="bottom-grid">
             <div className="info-card">
               <h3 className="card-title">
@@ -511,7 +569,9 @@ const StudentDashboard = () => {
                     <div key={i} className="data-row">
                       <div>
                         <div className="row-main">{s.course_name}</div>
-                        <div className="row-sub">{new Date(s.date).toLocaleDateString()}</div>
+                        <div className="row-sub">
+                          {new Date(s.date).toLocaleDateString()}
+                        </div>
                       </div>
                       <span className="score-badge">
                         {s.score}/{s.total}
@@ -522,6 +582,7 @@ const StudentDashboard = () => {
                   <div className="data-row">No results yet</div>
                 )}
               </div>
+
               <button
                 className="view-btn"
                 onClick={() => navigate("/dashboard/student/analytics")}
@@ -531,7 +592,7 @@ const StudentDashboard = () => {
             </div>
           </div>
 
-          {/* Visual Charts Grid */}
+          {/* ── Charts ── */}
           <div className="charts-grid">
             <div className="chart-card">
               <div className="chart-header">
@@ -540,10 +601,10 @@ const StudentDashboard = () => {
               <p className="chart-sub">Your progress over the last sessions</p>
               <div className="chart-wrapper">
                 {analytics?.trend?.length ? (
-  <Line data={lineData} options={chartOptions} />
-) : (
-  <p className="empty-state">No data</p>
-)}
+                  <Line data={lineData} options={chartOptions} />
+                ) : (
+                  <p className="empty-state">No data</p>
+                )}
               </div>
             </div>
 
@@ -554,10 +615,10 @@ const StudentDashboard = () => {
               <p className="chart-sub">Your average vs. the rest of the class</p>
               <div className="chart-wrapper">
                 {analytics?.subject_performance?.length ? (
-  <Bar data={barData} options={chartOptions} />
-) : (
-  <p className="empty-state">No data</p>
-)}
+                  <Bar data={barData} options={chartOptions} />
+                ) : (
+                  <p className="empty-state">No data</p>
+                )}
               </div>
               <div className="custom-legend">
                 <span><i className="dot blue"></i> You</span>
@@ -566,7 +627,7 @@ const StudentDashboard = () => {
             </div>
           </div>
 
-          {/* Modal Overlay */}
+          {/* ── Quiz Modal ── */}
           {showQuiz && (
             <QuizModal
               partitionId={quizPartitionId}

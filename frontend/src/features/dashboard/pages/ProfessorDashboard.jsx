@@ -1,4 +1,5 @@
 // frontend/src/features/dashboard/pages/ProfessorDashboard.jsx
+
 import { useEffect, useState, useRef } from "react";
 import { getCourses } from "../../courses/courseAPI";
 import socket from "../../../services/socket";
@@ -10,37 +11,69 @@ import {
 import ProfessorDashboardUI from "./ProfessorDashboardUI";
 
 const ProfessorDashboard = () => {
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [courses, setCourses]         = useState([]);
+  const [loading, setLoading]         = useState(true);
 
-  const [activeCourse, setActiveCourse] = useState(null);
-  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [activeCourse, setActiveCourse]           = useState(null);
+  const [activeSessionId, setActiveSessionId]     = useState(null);
+  const [activeSessionName, setActiveSessionName] = useState(null);
 
-  const [sessionStatus, setSessionStatus] = useState(null);
+  const [sessionStatus, setSessionStatus]     = useState(null);
   const [currentPartition, setCurrentPartition] = useState(null);
 
-  const [timeLeft, setTimeLeft] = useState(null);
+  const [timeLeft, setTimeLeft]               = useState(null);
   const [partitionEndTime, setPartitionEndTime] = useState(null);
 
-  // Modals
-  const [showModal, setShowModal] = useState(false);
-  const [showCourseModal, setShowCourseModal] = useState(false);
+  // Scheduled sessions (flat list, each item has course_name attached)
+  const [scheduledSessions, setScheduledSessions] = useState([]);
 
+  // Modals
+  const [showModal, setShowModal]           = useState(false);
+  const [showCourseModal, setShowCourseModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
 
   // Quiz flow
   const [showQuizPrompt, setShowQuizPrompt] = useState(false);
   const [lastPartitionId, setLastPartitionId] = useState(null);
-  const [quizGenerated, setQuizGenerated] = useState(false);
-  const [loadingQuiz, setLoadingQuiz] = useState(false);
+  const [quizGenerated, setQuizGenerated]   = useState(false);
+  const [loadingQuiz, setLoadingQuiz]       = useState(false);
 
   const intervalRef = useRef(null);
 
+  // ─────────────────────────────────────────
+  // Fetch scheduled sessions for all courses
+  // ─────────────────────────────────────────
+  const fetchScheduledSessions = async (coursesData) => {
+    try {
+      const results = await Promise.all(
+        coursesData.map((course) =>
+          api
+            .get(`/sessions/course/${course.id}/scheduled`)
+            .then((res) =>
+              res.data.sessions.map((s) => ({
+                ...s,
+                course_name: course.course_name,
+                course_id:   course.id,
+              }))
+            )
+            .catch(() => [])
+        )
+      );
+      setScheduledSessions(results.flat());
+    } catch (err) {
+      console.error("Failed to fetch scheduled sessions", err);
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // Fetch courses (and refresh scheduled sessions)
+  // ─────────────────────────────────────────
   const fetchCourses = async () => {
     setLoading(true);
     try {
       const res = await getCourses();
       setCourses(res.data);
+      await fetchScheduledSessions(res.data);
     } catch (err) {
       console.error("Failed to fetch courses", err);
     } finally {
@@ -48,6 +81,9 @@ const ProfessorDashboard = () => {
     }
   };
 
+  // ─────────────────────────────────────────
+  // Restore active session on page load
+  // ─────────────────────────────────────────
   const restoreSession = async () => {
     try {
       const res = await getCourses();
@@ -69,6 +105,7 @@ const ProfessorDashboard = () => {
             setSessionStatus(sessionData.data.status);
             setCurrentPartition(sessionData.data.current_partition_index);
             setPartitionEndTime(sessionData.data.end_time);
+            setActiveSessionName(sessionData.data.name || null);
 
             return;
           }
@@ -86,6 +123,9 @@ const ProfessorDashboard = () => {
     restoreSession();
   }, []);
 
+  // ─────────────────────────────────────────
+  // Socket event handlers
+  // ─────────────────────────────────────────
   useEffect(() => {
     const handleSessionState = (data) => {
       if (data.session_id !== activeSessionId) return;
@@ -132,10 +172,9 @@ const ProfessorDashboard = () => {
       setCurrentPartition(null);
       setPartitionEndTime(null);
       setTimeLeft(null);
-
       setActiveSessionId(null);
       setActiveCourse(null);
-
+      setActiveSessionName(null);
       setShowQuizPrompt(false);
 
       fetchCourses();
@@ -150,10 +189,9 @@ const ProfessorDashboard = () => {
       setCurrentPartition(null);
       setPartitionEndTime(null);
       setTimeLeft(null);
-
       setActiveSessionId(null);
       setActiveCourse(null);
-
+      setActiveSessionName(null);
       setShowQuizPrompt(false);
     };
 
@@ -166,47 +204,52 @@ const ProfessorDashboard = () => {
       setShowQuizPrompt(true);
     };
 
-    socket.on("session_state", handleSessionState);
-    socket.on("partition_finished", handlePartitionFinished);
-    socket.on("session_completed", handleCompleted);
-    socket.on("session_stopped", handleStopped);
-    socket.on("quiz_ready", handleQuizReady);
+    socket.on("session_state",       handleSessionState);
+    socket.on("partition_finished",  handlePartitionFinished);
+    socket.on("session_completed",   handleCompleted);
+    socket.on("session_stopped",     handleStopped);
+    socket.on("quiz_ready",          handleQuizReady);
 
     return () => {
-      socket.off("session_state", handleSessionState);
-      socket.off("partition_finished", handlePartitionFinished);
-      socket.off("session_completed", handleCompleted);
-      socket.off("session_stopped", handleStopped);
-      socket.off("quiz_ready", handleQuizReady);
+      socket.off("session_state",       handleSessionState);
+      socket.off("partition_finished",  handlePartitionFinished);
+      socket.off("session_completed",   handleCompleted);
+      socket.off("session_stopped",     handleStopped);
+      socket.off("quiz_ready",          handleQuizReady);
     };
   }, [activeSessionId]);
 
+  // ─────────────────────────────────────────
+  // Countdown timer
+  // ─────────────────────────────────────────
   useEffect(() => {
     if (!partitionEndTime || sessionStatus !== "active") return;
 
     const updateTimer = () => {
       const now = Math.floor(Date.now() / 1000);
-      const remaining = partitionEndTime - now;
-      setTimeLeft(Math.max(remaining, 0));
+      setTimeLeft(Math.max(partitionEndTime - now, 0));
     };
 
     updateTimer();
-
     if (intervalRef.current) clearInterval(intervalRef.current);
-
     intervalRef.current = setInterval(updateTimer, 500);
 
     return () => clearInterval(intervalRef.current);
   }, [partitionEndTime, sessionStatus]);
 
-  const handleCreateAndStart = async (sessionData) => {
+  // ─────────────────────────────────────────
+  // Create + start immediately (from modal)
+  // ─────────────────────────────────────────
+  const handleStartNow = async (sessionData) => {
     try {
       const res = await api.post("/sessions", sessionData);
 
-      const sessionId = res.data.session.id;
+      const sessionId   = res.data.session.id;
+      const sessionName = res.data.session.name;
 
       setActiveSessionId(sessionId);
       setActiveCourse(sessionData.course_id);
+      setActiveSessionName(sessionName || null);
 
       socket.emit("join_session", { session_id: sessionId });
 
@@ -218,34 +261,63 @@ const ProfessorDashboard = () => {
     }
   };
 
-  const handleGenerateQuiz = async () => {
-    if (!activeSessionId || !lastPartitionId) return;
-
+  // ─────────────────────────────────────────
+  // Create only (schedule for later)
+  // ─────────────────────────────────────────
+  const handleScheduleSession = async (sessionData) => {
     try {
-      setLoadingQuiz(true);
-
-      await api.post(`/sessions/${activeSessionId}/generate-quiz`, {
-        partition_id: lastPartitionId,
-      });
+      await api.post("/sessions", sessionData);
+      setShowModal(false);
+      fetchCourses(); // refreshes courses + scheduled sessions
     } catch (err) {
-      console.error("Failed to generate quiz", err);
-      setLoadingQuiz(false);
+      alert("Failed to schedule session");
     }
   };
 
-  const handleResume = async () => {
-    if (!activeSessionId) return;
+  // ─────────────────────────────────────────
+  // Start a pre-scheduled session
+  // ─────────────────────────────────────────
+  const handleStartScheduled = async (sessionId, courseId, sessionName) => {
+    if (activeSessionId) {
+      alert("Stop the current session before starting another.");
+      return;
+    }
 
-    await api.post(`/sessions/${activeSessionId}/resume`);
-    setShowQuizPrompt(false);
+    try {
+      setActiveSessionId(sessionId);
+      setActiveCourse(courseId);
+      setActiveSessionName(sessionName || null);
+
+      socket.emit("join_session", { session_id: sessionId });
+
+      await api.post(`/sessions/${sessionId}/start`);
+
+      // Remove from scheduled list immediately (backend status changes to active)
+      setScheduledSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    } catch (err) {
+      // Rollback optimistic state on failure
+      setActiveSessionId(null);
+      setActiveCourse(null);
+      setActiveSessionName(null);
+      alert("Failed to start session");
+    }
   };
 
+  // ─────────────────────────────────────────
+  // Pause / Resume / Stop
+  // ─────────────────────────────────────────
   const handlePause = async () => {
     if (!activeSessionId) return;
     setSessionStatus("paused");
     clearInterval(intervalRef.current);
     await api.post(`/sessions/${activeSessionId}/pause`);
-};
+  };
+
+  const handleResume = async () => {
+    if (!activeSessionId) return;
+    await api.post(`/sessions/${activeSessionId}/resume`);
+    setShowQuizPrompt(false);
+  };
 
   const handleStop = async () => {
     if (!activeSessionId) return;
@@ -258,11 +330,24 @@ const ProfessorDashboard = () => {
     setCurrentPartition(null);
     setPartitionEndTime(null);
     setTimeLeft(null);
-
     setActiveSessionId(null);
     setActiveCourse(null);
-
+    setActiveSessionName(null);
     setShowQuizPrompt(false);
+  };
+
+  const handleGenerateQuiz = async () => {
+    if (!activeSessionId || !lastPartitionId) return;
+
+    try {
+      setLoadingQuiz(true);
+      await api.post(`/sessions/${activeSessionId}/generate-quiz`, {
+        partition_id: lastPartitionId,
+      });
+    } catch (err) {
+      console.error("Failed to generate quiz", err);
+      setLoadingQuiz(false);
+    }
   };
 
   return (
@@ -271,9 +356,11 @@ const ProfessorDashboard = () => {
       loading={loading}
       activeCourse={activeCourse}
       activeSessionId={activeSessionId}
+      activeSessionName={activeSessionName}
       sessionStatus={sessionStatus}
       currentPartition={currentPartition}
       timeLeft={timeLeft}
+      scheduledSessions={scheduledSessions}
       showModal={showModal}
       showCourseModal={showCourseModal}
       selectedCourse={selectedCourse}
@@ -289,7 +376,9 @@ const ProfessorDashboard = () => {
       onResume={handleResume}
       onStop={handleStop}
       onGenerateQuiz={handleGenerateQuiz}
-      onCreateSession={handleCreateAndStart}
+      onStartNow={handleStartNow}
+      onScheduleSession={handleScheduleSession}
+      onStartScheduled={handleStartScheduled}
       onCloseModal={() => setShowModal(false)}
       onOpenCourseModal={() => setShowCourseModal(true)}
       onCloseCourseModal={() => setShowCourseModal(false)}

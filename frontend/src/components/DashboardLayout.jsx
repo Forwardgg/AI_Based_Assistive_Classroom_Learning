@@ -1,4 +1,5 @@
 // frontend/src/components/DashboardLayout.jsx
+
 import Navbar from "./Navbar";
 
 const DashboardLayout = ({ children }) => {

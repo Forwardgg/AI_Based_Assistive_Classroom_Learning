@@ -1,3 +1,5 @@
+// frontend/src/features/courses/pages/StudentCourses.jsx
+
 import React, { useEffect, useState } from 'react';
 import {
   LogIn,
