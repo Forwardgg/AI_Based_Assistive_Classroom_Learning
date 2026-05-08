@@ -13,6 +13,7 @@ from app.models.session import Session
 from app.models.session_partition import SessionPartition
 from app.services.whisper_service import transcribe_audio
 from app.services.transcript_service import store_segment
+from app.routes.session_routes import session_controls
 
 
 transcript_bp = Blueprint("transcripts", __name__)  # transcript route group
@@ -114,6 +115,14 @@ def upload_audio():
     # ensure session is active and partition is running
     if session.status != "active" or not session.current_partition_index:
         return jsonify({"error": "session not active"}), 400
+
+    ctrl = session_controls.get(session_id, {})
+
+    # prevent transcript leakage during fluid transitions
+    if ctrl.get("transitioning"):
+        return jsonify({
+            "error": "segment transition in progress"
+        }), 409
 
     print("CURRENT PARTITION INDEX:", session.current_partition_index)
 

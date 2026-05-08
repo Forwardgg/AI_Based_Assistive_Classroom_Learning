@@ -215,3 +215,64 @@ def get_course_sessions(course_id):
         })
 
     return jsonify(result), 200
+
+
+# ─────────────────────────────────────────────
+# DELETE /<course_id>
+# ─────────────────────────────────────────────
+@course_bp.route("/<int:course_id>", methods=["DELETE"])
+@jwt_required()
+def delete_course(course_id):
+
+    user_id = int(get_jwt_identity())
+
+    course = Course.query.get(course_id)
+
+    if not course:
+        return jsonify({
+            "error": "Course not found"
+        }), 404
+
+    # =========================================
+    # ONLY OWNER CAN DELETE
+    # =========================================
+
+    if course.professor_id != user_id:
+        return jsonify({
+            "error": "Unauthorized"
+        }), 403
+
+    # =========================================
+    # STOP ACTIVE SESSIONS FIRST
+    # =========================================
+
+    active_sessions = (
+        Session.query
+        .filter_by(course_id=course_id)
+        .filter(
+            Session.status.in_(["active", "paused"])
+        )
+        .all()
+    )
+
+    for session in active_sessions:
+
+        session.status = "stopped"
+
+        session.current_partition_index = None
+        session.partition_start_time = None
+        session.partition_end_time = None
+
+    db.session.commit()
+
+    # =========================================
+    # DELETE COURSE
+    # =========================================
+
+    db.session.delete(course)
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Course deleted"
+    }), 200

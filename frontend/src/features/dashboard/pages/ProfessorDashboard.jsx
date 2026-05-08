@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { getCourses } from "../../courses/courseAPI";
 import socket from "../../../services/socket";
 import api from "../../../services/api";
+import { endSegment } from "../../lectures/sessionApi";
 import {
   startRecording,
   stopRecording,
@@ -19,6 +20,9 @@ const ProfessorDashboard = () => {
   const [activeSessionName, setActiveSessionName] = useState(null);
 
   const [sessionStatus, setSessionStatus]     = useState(null);
+  const [sessionMode, setSessionMode] = useState(null);
+const [elapsedTime, setElapsedTime] = useState(null);
+const [sessionStartTime, setSessionStartTime] = useState(null);
   const [currentPartition, setCurrentPartition] = useState(null);
 
   const [timeLeft, setTimeLeft]               = useState(null);
@@ -103,6 +107,8 @@ const ProfessorDashboard = () => {
             const sessionData = await api.get(`/sessions/${sessionId}`);
 
             setSessionStatus(sessionData.data.status);
+            setSessionMode(sessionData.data.mode || "partitioned");
+setSessionStartTime(sessionData.data.start_time || null);
             setCurrentPartition(sessionData.data.current_partition_index);
             setPartitionEndTime(sessionData.data.end_time);
             setActiveSessionName(sessionData.data.name || null);
@@ -133,11 +139,28 @@ const ProfessorDashboard = () => {
       setSessionStatus(data.status);
       setCurrentPartition(data.current_partition_index);
 
-      const now = Math.floor(Date.now() / 1000);
-      const drift = now - data.server_time;
-      const correctedEnd = data.end_time ? data.end_time + drift : null;
+      setSessionMode(data.mode || "partitioned");
 
-      setPartitionEndTime(correctedEnd);
+const now = Math.floor(Date.now() / 1000);
+const drift = now - data.server_time;
+
+if (data.mode === "partitioned") {
+
+  const correctedEnd =
+    data.end_time
+      ? data.end_time + drift
+      : null;
+
+  setPartitionEndTime(correctedEnd);
+
+} else {
+
+  setSessionStartTime(
+    data.start_time || null
+  );
+
+  setPartitionEndTime(null);
+}
 
       if (
         data.status === "active" &&
@@ -169,6 +192,9 @@ const ProfessorDashboard = () => {
       stopRecording(true);
 
       setSessionStatus("completed");
+      setSessionMode(null);
+setElapsedTime(null);
+setSessionStartTime(null);
       setCurrentPartition(null);
       setPartitionEndTime(null);
       setTimeLeft(null);
@@ -186,6 +212,9 @@ const ProfessorDashboard = () => {
       stopRecording(true);
 
       setSessionStatus("stopped");
+      setSessionMode(null);
+setElapsedTime(null);
+setSessionStartTime(null);
       setCurrentPartition(null);
       setPartitionEndTime(null);
       setTimeLeft(null);
@@ -223,19 +252,65 @@ const ProfessorDashboard = () => {
   // Countdown timer
   // ─────────────────────────────────────────
   useEffect(() => {
-    if (!partitionEndTime || sessionStatus !== "active") return;
 
-    const updateTimer = () => {
-      const now = Math.floor(Date.now() / 1000);
-      setTimeLeft(Math.max(partitionEndTime - now, 0));
-    };
+  if (sessionStatus !== "active") {
+    return;
+  }
 
-    updateTimer();
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(updateTimer, 500);
+  const updateTimer = () => {
 
-    return () => clearInterval(intervalRef.current);
-  }, [partitionEndTime, sessionStatus]);
+    const now = Math.floor(Date.now() / 1000);
+
+    // =====================================
+    // PARTITIONED MODE
+    // =====================================
+
+    if (
+      sessionMode === "partitioned" &&
+      partitionEndTime
+    ) {
+
+      setTimeLeft(
+        Math.max(partitionEndTime - now, 0)
+      );
+
+      return;
+    }
+
+    // =====================================
+    // FLUID MODE
+    // =====================================
+
+    if (
+      sessionMode === "fluid" &&
+      sessionStartTime
+    ) {
+
+      setElapsedTime(
+        Math.max(now - sessionStartTime, 0)
+      );
+    }
+  };
+
+  updateTimer();
+
+  if (intervalRef.current) {
+    clearInterval(intervalRef.current);
+  }
+
+  intervalRef.current = setInterval(
+    updateTimer,
+    500
+  );
+
+  return () => clearInterval(intervalRef.current);
+
+}, [
+  partitionEndTime,
+  sessionStartTime,
+  sessionStatus,
+  sessionMode
+]);
 
   // ─────────────────────────────────────────
   // Create + start immediately (from modal)
@@ -319,6 +394,31 @@ const ProfessorDashboard = () => {
     setShowQuizPrompt(false);
   };
 
+  const handleEndSegment = async () => {
+
+  if (!activeSessionId) {
+    return;
+  }
+
+  try {
+
+    stopRecording(true);
+
+    await endSegment(activeSessionId);
+
+    startRecording(activeSessionId);
+
+  } catch (err) {
+
+    console.error(
+      "Failed to end segment",
+      err
+    );
+
+    alert("Failed to end segment");
+  }
+};
+
   const handleStop = async () => {
     if (!activeSessionId) return;
 
@@ -327,6 +427,9 @@ const ProfessorDashboard = () => {
     stopRecording(true);
 
     setSessionStatus("stopped");
+    setSessionMode(null);
+setElapsedTime(null);
+setSessionStartTime(null);
     setCurrentPartition(null);
     setPartitionEndTime(null);
     setTimeLeft(null);
@@ -359,6 +462,9 @@ const ProfessorDashboard = () => {
       activeSessionName={activeSessionName}
       sessionStatus={sessionStatus}
       currentPartition={currentPartition}
+      sessionMode={sessionMode}
+elapsedTime={elapsedTime}
+onEndSegment={handleEndSegment}
       timeLeft={timeLeft}
       scheduledSessions={scheduledSessions}
       showModal={showModal}

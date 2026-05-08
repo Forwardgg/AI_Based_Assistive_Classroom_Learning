@@ -88,7 +88,7 @@ const ProfessorAnalytics = () => {
   const now = new Date();
 
   const filteredSessions = sessions
-    .filter(s => {
+    .filter((s) => {
       const matchesSearch = s.course_name
         .toLowerCase()
         .includes(search.toLowerCase());
@@ -114,12 +114,12 @@ const ProfessorAnalytics = () => {
     );
 
   const lineData = {
-    labels: data.trend.map(t => `Part ${t.partition}`),
+    labels: data.trend.map((t) => `Part ${t.partition}`),
     datasets: [
       {
         fill: true,
         label: "Accuracy %",
-        data: data.trend.map(t => t.accuracy),
+        data: data.trend.map((t) => t.accuracy),
         borderColor: "#3b82f6",
         backgroundColor: "rgba(59, 130, 246, 0.05)",
         tension: 0.4,
@@ -133,15 +133,29 @@ const ProfessorAnalytics = () => {
     responsive: true,
     maintainAspectRatio: false,
     scales: {
-      y: { 
-        beginAtZero: true, 
-        max: 100, 
-        ticks: { stepSize: 25, callback: (v) => v + "%" },
-        grid: { borderDash: [5, 5], color: "#e2e8f0" } 
+      y: {
+        beginAtZero: true,
+        max: 100,
+        ticks: {
+          stepSize: 25,
+          callback: (v) => v + "%",
+        },
+        grid: {
+          borderDash: [5, 5],
+          color: "#e2e8f0",
+        },
       },
-      x: { grid: { display: false } }
+      x: {
+        grid: {
+          display: false,
+        },
+      },
     },
-    plugins: { legend: { display: false } }
+    plugins: {
+      legend: {
+        display: false,
+      },
+    },
   };
 
   const handleSessionClick = (id) => {
@@ -152,7 +166,7 @@ const ProfessorAnalytics = () => {
   return (
     <div className="ProfessorAnalytics-root">
       <div className="analytics-container">
-        
+
         {/* Header */}
         <div className="analytics-header">
           <div className="header-text">
@@ -160,20 +174,23 @@ const ProfessorAnalytics = () => {
             <p>Analyze student performance for a lecture session</p>
           </div>
 
-          <div 
+          <div
             className="dropdown-selector"
             onClick={() => setOpen(!open)}
           >
             <span>
-              {data.header.course_name} — {new Date(data.header.session_date).toDateString()}
+              {data.header.course_name} —{" "}
+              {new Date(data.header.session_date).toDateString()}
             </span>
+
             <ChevronDown size={16} />
 
             {open && (
-              <div 
+              <div
                 className="dropdown-menu"
                 onClick={(e) => e.stopPropagation()}
               >
+
                 {/* Search */}
                 <input
                   type="text"
@@ -210,10 +227,13 @@ const ProfessorAnalytics = () => {
                   {filteredSessions.map((s) => (
                     <div
                       key={s.id}
-                      className={`dropdown-item ${s.id === sessionId ? "active" : ""}`}
+                      className={`dropdown-item ${
+                        s.id === sessionId ? "active" : ""
+                      }`}
                       onClick={() => handleSessionClick(s.id)}
                     >
-                      {s.course_name} — {new Date(s.date).toDateString()}
+                      {s.course_name} —{" "}
+                      {new Date(s.date).toDateString()}
                     </div>
                   ))}
                 </div>
@@ -224,10 +244,29 @@ const ProfessorAnalytics = () => {
 
         {/* Stats */}
         <div className="stats-grid">
-          <StatCard title="AVERAGE ACCURACY" value={`${data.stats.avg_accuracy}%`} icon={<Target size={20} className="icon-blue" />} />
-          <StatCard title="STUDENTS PARTICIPATED" value={data.stats.students_participated} icon={<Users size={20} className="icon-green" />} />
-          <StatCard title="QUESTIONS ATTEMPTED" value={data.stats.questions_attempted} icon={<HelpCircle size={20} className="icon-orange" />} />
-          <StatCard title="AVG ATTEMPTS / STUDENT" value={data.stats.avg_attempts_per_student} icon={<BarChart3 size={20} className="icon-purple" />} />
+          <StatCard
+            title="AVERAGE ACCURACY"
+            value={`${data.stats.avg_accuracy}%`}
+            icon={<Target size={20} className="icon-blue" />}
+          />
+
+          <StatCard
+            title="STUDENTS PARTICIPATED"
+            value={data.stats.students_participated}
+            icon={<Users size={20} className="icon-green" />}
+          />
+
+          <StatCard
+            title="QUESTIONS ATTEMPTED"
+            value={data.stats.questions_attempted}
+            icon={<HelpCircle size={20} className="icon-orange" />}
+          />
+
+          <StatCard
+            title="AVG ATTEMPTS / STUDENT"
+            value={data.stats.avg_attempts_per_student}
+            icon={<BarChart3 size={20} className="icon-purple" />}
+          />
         </div>
 
         {/* Chart */}
@@ -236,6 +275,7 @@ const ProfessorAnalytics = () => {
             <BarChart3 size={18} className="text-blue" />
             <h3>Understanding Trend Across Lecture</h3>
           </div>
+
           <div className="chart-wrapper">
             <Line data={lineData} options={chartOptions} />
           </div>
@@ -243,13 +283,14 @@ const ProfessorAnalytics = () => {
 
         {/* Middle Section */}
         <div className="side-by-side-flex-container">
-          
+
           {/* Weak Topics */}
-          <div className="card">
+          <div className="card equal-height">
             <div className="card-header text-orange">
               <AlertTriangle size={18} />
               <h3>Weak Learning Areas</h3>
             </div>
+
             <div className="topics-list">
               {data.weak_topics.map((t, i) => (
                 <TopicRow
@@ -257,7 +298,10 @@ const ProfessorAnalytics = () => {
                   title={t.topic}
                   part={`Partition ${t.partition}`}
                   score={`${t.accuracy}%`}
-                  status={t.status.charAt(0).toUpperCase() + t.status.slice(1)}
+                  status={
+                    t.status.charAt(0).toUpperCase() +
+                    t.status.slice(1)
+                  }
                   type={
                     t.status === "weak"
                       ? "status-red"
@@ -271,11 +315,12 @@ const ProfessorAnalytics = () => {
           </div>
 
           {/* Questions */}
-          <div className="card">
+          <div className="card equal-height">
             <div className="card-header text-blue">
               <Search size={18} />
               <h3>Question Insights</h3>
             </div>
+
             <div className="table-responsive">
               <table className="analytics-table">
                 <thead>
@@ -285,13 +330,17 @@ const ProfessorAnalytics = () => {
                     <th className="text-right">Difficulty</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {data.questions.map((q, i) => (
                     <QuestionRow
                       key={i}
                       q={q.question}
                       acc={`${q.accuracy}%`}
-                      diff={q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1)}
+                      diff={
+                        q.difficulty.charAt(0).toUpperCase() +
+                        q.difficulty.slice(1)
+                      }
                       diffClass={
                         q.difficulty === "easy"
                           ? "diff-easy"
@@ -309,13 +358,14 @@ const ProfessorAnalytics = () => {
 
         {/* Bottom Section */}
         <div className="bottom-grid">
-          
+
           {/* Students */}
-          <div className="card">
+          <div className="card equal-height">
             <div className="card-header">
               <Users size={18} />
               <h3>Student Performance</h3>
             </div>
+
             <div className="table-responsive">
               <table className="analytics-table">
                 <thead>
@@ -325,6 +375,7 @@ const ProfessorAnalytics = () => {
                     <th className="text-right">Accuracy</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {data.students.map((s, i) => (
                     <StudentRow
@@ -341,20 +392,34 @@ const ProfessorAnalytics = () => {
 
           {/* Participation */}
           <div className="card participation-card">
-            <h3 className="self-start text-slate-800 font-semibold">Participation</h3>
+            <h3 className="self-start text-slate-800 font-semibold">
+              Participation
+            </h3>
+
             <div className="participation-stat">
               <span className="participation-value">
                 {data.participation.rate}%
               </span>
-              <span className="participation-label">PARTICIPATION RATE</span>
+
+              <span className="participation-label">
+                PARTICIPATION RATE
+              </span>
             </div>
+
             <div className="participation-breakdown">
               <div className="breakdown-item item-green">
-                <span><Users size={14} /> Participated</span>
+                <span>
+                  <Users size={14} /> Participated
+                </span>
+
                 <strong>{data.participation.participated}</strong>
               </div>
+
               <div className="breakdown-item item-red">
-                <span><Users size={14} /> Did not attempt</span>
+                <span>
+                  <Users size={14} /> Did not attempt
+                </span>
+
                 <strong>{data.participation.not_participated}</strong>
               </div>
             </div>

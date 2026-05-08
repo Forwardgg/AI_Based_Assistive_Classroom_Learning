@@ -340,3 +340,42 @@
   color: var(--green) !important;
   font-weight: 600;
 }
+/* Equal height scrollable cards */
+.equal-height {
+  height: 380px;
+  display: flex;
+  flex-direction: column;
+}
+
+.equal-height .topic-list {
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 4px;
+}
+
+.equal-height.table-card {
+  overflow: hidden;
+}
+
+.equal-height.table-card .review-table {
+  display: block;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Scrollbars */
+.equal-height .topic-list::-webkit-scrollbar,
+.equal-height.table-card .review-table::-webkit-scrollbar {
+  width: 4px;
+}
+
+.equal-height .topic-list::-webkit-scrollbar-thumb,
+.equal-height.table-card .review-table::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.equal-height .topic-list::-webkit-scrollbar-track,
+.equal-height.table-card .review-table::-webkit-scrollbar-track {
+  background: #f8fafc;
+}

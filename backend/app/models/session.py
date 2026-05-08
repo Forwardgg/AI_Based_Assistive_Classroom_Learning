@@ -24,6 +24,11 @@ class Session(db.Model):
         default="scheduled",
         nullable=False
     )
+    mode = db.Column(
+        db.Enum("partitioned", "fluid", name="session_mode"),
+        default="partitioned",
+        nullable=False
+    )
 
     current_partition_index = db.Column(db.Integer, nullable=True)
 
@@ -49,6 +54,7 @@ class Session(db.Model):
             "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
             "duration_minutes": self.duration_minutes,
             "status": self.status,
+            "mode": self.mode,
             "current_partition_index": self.current_partition_index,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }

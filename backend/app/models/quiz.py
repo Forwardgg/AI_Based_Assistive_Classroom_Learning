@@ -1,3 +1,5 @@
+# backend/app/models/quiz.py
+
 from app import db
 from datetime import datetime
 
@@ -5,27 +7,40 @@ from datetime import datetime
 class Quiz(db.Model):
     __tablename__ = "quizzes"
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
 
     partition_id = db.Column(
         db.Integer,
-        db.ForeignKey("session_partitions.id", ondelete="CASCADE"),
+        db.ForeignKey(
+            "session_partitions.id",
+            ondelete="CASCADE"
+        ),
         unique=True,
         nullable=False
     )
 
-    source = db.Column(db.String(10), nullable=False)  # 'AI' or 'manual'
+    source = db.Column(
+        db.String(10),
+        nullable=False
+    )  # AI / manual
 
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow
     )
 
-    # relationship
+    # =========================================
+    # QUESTIONS
+    # =========================================
+
     questions = db.relationship(
         "Question",
         backref="quiz",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy=True
     )
 

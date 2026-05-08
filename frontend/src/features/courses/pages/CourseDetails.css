@@ -209,3 +209,28 @@ body {
   color: #15803d;
   text-decoration: underline;
 }
+
+/* Danger icon button (delete session, inline in header) */
+.danger-icon-btn {
+  background: none;
+  border: none;
+  color: var(--danger-red);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+.danger-icon-btn:hover { opacity: 1; }
+.danger-icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Danger variant for view-quiz-btn (delete partition) */
+.view-quiz-btn.danger {
+  color: var(--danger-red);
+}
+.view-quiz-btn.danger:hover {
+  color: #b91c1c;
+  text-decoration: underline;
+}

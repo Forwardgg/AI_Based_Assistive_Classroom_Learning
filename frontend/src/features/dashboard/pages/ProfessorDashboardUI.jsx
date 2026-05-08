@@ -32,6 +32,9 @@ const ProfessorDashboardUI = (props) => {
     loading,
     activeCourse,
     activeSessionName,
+    sessionMode,
+elapsedTime,
+onEndSegment,
     sessionStatus,
     currentPartition,
     timeLeft,
@@ -66,6 +69,18 @@ const ProfessorDashboardUI = (props) => {
 
   const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
+
+  const formatTime = (seconds) => {
+
+  if (seconds === null || seconds === undefined) {
+    return "--";
+  }
+
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+};
 
   const filteredCourses = useMemo(() => {
     return courses.filter(
@@ -122,42 +137,103 @@ const ProfessorDashboardUI = (props) => {
 
           {/* ── LIVE SESSION BAR ── */}
           {(sessionStatus === "active" || sessionStatus === "paused") && (
-            <div className={`session-control-bar ${sessionStatus}`}>
-              <div className="session-bar-info">
-                <div className="pulse-indicator"></div>
 
-                <strong>
-                  {activeSessionName
-                    ? `Live: ${activeSessionName} — Partition ${currentPartition}`
-                    : `Live Session: Partition ${currentPartition}`}
-                </strong>
+  <div className={`session-control-bar ${sessionStatus}`}>
 
-                <span className="timer-display">
-                  <Clock size={16} />
-                  {timeLeft !== null ? `${timeLeft}s` : "--"}
-                </span>
-              </div>
+    <div className="session-bar-info">
 
-              <div className="session-bar-actions">
-                {sessionStatus === "paused" ? (
-                  <button className="bar-btn resume" onClick={onResume}>
-                    <Play size={18} />
-                    Resume
-                  </button>
-                ) : (
-                  <button className="bar-btn pause" onClick={onPause}>
-                    <Pause size={18} />
-                    Pause
-                  </button>
-                )}
+      <div className="pulse-indicator"></div>
 
-                <button className="bar-btn stop" onClick={onStop}>
-                  <Square size={18} />
-                  Stop
-                </button>
-              </div>
-            </div>
-          )}
+      <strong>
+
+        {sessionMode === "fluid"
+          ? (
+              activeSessionName
+                ? `Live: ${activeSessionName} — Segment ${currentPartition}`
+                : `Live Session: Segment ${currentPartition}`
+            )
+          : (
+              activeSessionName
+                ? `Live: ${activeSessionName} — Partition ${currentPartition}`
+                : `Live Session: Partition ${currentPartition}`
+            )}
+
+      </strong>
+
+      <span className="timer-display">
+
+        <Clock size={16} />
+
+        {sessionMode === "fluid"
+          ? formatTime(elapsedTime)
+          : (
+              timeLeft !== null
+                ? `${timeLeft}s`
+                : "--"
+            )}
+
+      </span>
+
+    </div>
+
+    <div className="session-bar-actions">
+
+      {/* ================================= */}
+      {/* END SEGMENT BUTTON */}
+      {/* ================================= */}
+
+      {sessionMode === "fluid" &&
+       sessionStatus === "active" && (
+        <button
+          className="bar-btn"
+          onClick={onEndSegment}
+        >
+          End Segment
+        </button>
+      )}
+
+      {/* ================================= */}
+      {/* PAUSE / RESUME */}
+      {/* ================================= */}
+
+      {sessionStatus === "paused" ? (
+
+        <button
+          className="bar-btn resume"
+          onClick={onResume}
+        >
+          <Play size={18} />
+          Resume
+        </button>
+
+      ) : (
+
+        <button
+          className="bar-btn pause"
+          onClick={onPause}
+        >
+          <Pause size={18} />
+          Pause
+        </button>
+
+      )}
+
+      {/* ================================= */}
+      {/* STOP */}
+      {/* ================================= */}
+
+      <button
+        className="bar-btn stop"
+        onClick={onStop}
+      >
+        <Square size={18} />
+        Stop
+      </button>
+
+    </div>
+
+  </div>
+)}
 
           {/* ── HEADER ── */}
           <header className="greeting">

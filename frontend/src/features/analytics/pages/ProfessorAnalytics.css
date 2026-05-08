@@ -1,4 +1,5 @@
 .ProfessorAnalytics-root {
+
   /* 1. Base Setup */
   .analytics-container {
     padding: 2rem;
@@ -7,6 +8,9 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     color: #1e293b;
     box-sizing: border-box;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
   }
 
   /* 2. Header & Selector */
@@ -15,6 +19,8 @@
     justify-content: space-between;
     align-items: flex-end;
     margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
   }
 
   .header-text h1 {
@@ -30,7 +36,7 @@
     margin-top: 0.25rem;
   }
 
-  /* 🔥 UPDATED DROPDOWN */
+  /* Dropdown */
   .dropdown-selector {
     position: relative;
     display: flex;
@@ -46,7 +52,6 @@
     cursor: pointer;
   }
 
-  /* Dropdown menu */
   .dropdown-menu {
     position: absolute;
     top: 110%;
@@ -61,19 +66,18 @@
     animation: dropdownFade 0.15s ease;
   }
 
-  /* Animation */
   @keyframes dropdownFade {
     from {
       opacity: 0;
       transform: translateY(-5px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
     }
   }
 
-  /* Search input */
   .dropdown-search {
     width: 100%;
     padding: 0.6rem 0.75rem;
@@ -83,13 +87,27 @@
     outline: none;
   }
 
-  /* List container */
+  .dropdown-controls {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .dropdown-select {
+    flex: 1;
+    font-size: 0.75rem;
+    padding: 0.35rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.4rem;
+    background: white;
+  }
+
   .dropdown-list {
     max-height: 220px;
     overflow-y: auto;
   }
 
-  /* Item */
   .dropdown-item {
     padding: 0.7rem 0.9rem;
     font-size: 0.8rem;
@@ -98,12 +116,10 @@
     transition: background 0.15s ease;
   }
 
-  /* Hover */
   .dropdown-item:hover {
     background: #f1f5f9;
   }
 
-  /* Active */
   .dropdown-item.active {
     background: #e0f2fe;
     color: #0369a1;
@@ -113,7 +129,7 @@
   /* 3. Stats Grid */
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1.5rem;
     margin-bottom: 2rem;
   }
@@ -160,6 +176,39 @@
     flex-direction: column;
   }
 
+  /* Equal height cards with internal scroll */
+  .card.equal-height {
+    height: 380px;
+  }
+
+  .card.equal-height .topics-list {
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 4px;
+  }
+
+  .card.equal-height .table-responsive {
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  /* Scrollbar styling */
+  .card.equal-height .topics-list::-webkit-scrollbar,
+  .card.equal-height .table-responsive::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .card.equal-height .topics-list::-webkit-scrollbar-track,
+  .card.equal-height .table-responsive::-webkit-scrollbar-track {
+    background: #f8fafc;
+  }
+
+  .card.equal-height .topics-list::-webkit-scrollbar-thumb,
+  .card.equal-height .table-responsive::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+
   .card-header {
     display: flex;
     align-items: center;
@@ -179,8 +228,9 @@
   }
 
   .chart-wrapper {
-    height: 320px;
+    height: 280px;
     width: 100%;
+    min-width: 0;
   }
 
   /* 6. Side-by-side */
@@ -286,9 +336,20 @@
     border-radius: 6px;
   }
 
-  .status-red { background: #fee2e2; color: #dc2626; }
-  .status-orange { background: #ffedd5; color: #ea580c; }
-  .status-green { background: #dcfce7; color: #16a34a; }
+  .status-red {
+    background: #fee2e2;
+    color: #dc2626;
+  }
+
+  .status-orange {
+    background: #ffedd5;
+    color: #ea580c;
+  }
+
+  .status-green {
+    background: #dcfce7;
+    color: #16a34a;
+  }
 
   .diff-badge {
     font-size: 0.75rem;
@@ -296,9 +357,17 @@
     text-transform: uppercase;
   }
 
-  .diff-easy { color: #10b981; }
-  .diff-medium { color: #f59e0b; }
-  .diff-hard { color: #ef4444; }
+  .diff-easy {
+    color: #10b981;
+  }
+
+  .diff-medium {
+    color: #f59e0b;
+  }
+
+  .diff-hard {
+    color: #ef4444;
+  }
 
   /* 11. Progress */
   .progress-container {
@@ -369,51 +438,87 @@
     font-size: 0.875rem;
   }
 
-  .item-green { background: #f0fdf4; border: 1px solid #dcfce7; color: #15803d; }
-  .item-red { background: #fef2f2; border: 1px solid #fee2e2; color: #b91c1c; }
+  .item-green {
+    background: #f0fdf4;
+    border: 1px solid #dcfce7;
+    color: #15803d;
+  }
+
+  .item-red {
+    background: #fef2f2;
+    border: 1px solid #fee2e2;
+    color: #b91c1c;
+  }
 
   /* 13. Utility */
-  .text-center { text-align: center; }
-  .text-right { text-align: right; }
-  .text-blue { color: #2563eb; }
-  .text-orange { color: #ea580c; }
-  .text-slate-700 { color: #334155; }
-  .text-slate-600 { color: #475569; }
-  .text-slate-800 { color: #1e293b; }
-  .font-semibold { font-weight: 600; }
-  .font-bold { font-weight: 700; }
-  .self-start { align-self: flex-start; }
-
-  /* 14. Dropdown Controls */
-  .dropdown-controls {
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    border-bottom: 1px solid #f1f5f9;
+  .text-center {
+    text-align: center;
   }
 
-  .dropdown-select {
-    flex: 1;
-    font-size: 0.75rem;
-    padding: 0.35rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.4rem;
-    background: white;
+  .text-right {
+    text-align: right;
   }
 
-  /* 15. Responsive */
+  .text-blue {
+    color: #2563eb;
+  }
+
+  .text-orange {
+    color: #ea580c;
+  }
+
+  .text-slate-700 {
+    color: #334155;
+  }
+
+  .text-slate-600 {
+    color: #475569;
+  }
+
+  .text-slate-800 {
+    color: #1e293b;
+  }
+
+  .font-semibold {
+    font-weight: 600;
+  }
+
+  .font-bold {
+    font-weight: 700;
+  }
+
+  .self-start {
+    align-self: flex-start;
+  }
+
+  /* 14. Responsive */
   @media (max-width: 1200px) {
     .side-by-side-flex-container {
       flex-direction: column;
     }
+
+    .card.equal-height {
+      height: auto;
+    }
   }
 
   @media (max-width: 1024px) {
-    .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .bottom-grid { grid-template-columns: 1fr; }
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .bottom-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (max-width: 640px) {
-    .stats-grid { grid-template-columns: 1fr; }
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .analytics-container {
+      padding: 1rem;
+    }
   }
 }

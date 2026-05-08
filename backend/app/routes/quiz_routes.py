@@ -78,3 +78,59 @@ def submit_answers():
         "score": score,
         "total": len(results)
     })
+
+
+# FULL SESSION QUIZ
+@quiz_bp.route("/session/<int:session_id>", methods=["GET"])
+@jwt_required()
+def get_full_session_quiz(session_id):
+
+    quizzes = (
+        Quiz.query
+        .join(
+            Question,
+            Question.quiz_id == Quiz.id
+        )
+        .join(
+            SessionPartition,
+            Quiz.partition_id == SessionPartition.id
+        )
+        .filter(
+            SessionPartition.session_id == session_id
+        )
+        .all()
+    )
+
+    if not quizzes:
+        return jsonify({
+            "message": "No quizzes found"
+        }), 404
+
+    questions = []
+
+    for quiz in quizzes:
+
+        quiz_questions = (
+            Question.query
+            .filter_by(quiz_id=quiz.id)
+            .all()
+        )
+
+        for q in quiz_questions:
+
+            questions.append({
+                "id": q.id,
+                "question_text": q.question_text,
+                "options": {
+                    "A": q.option_a,
+                    "B": q.option_b,
+                    "C": q.option_c,
+                    "D": q.option_d
+                },
+                "correct": q.correct_option
+            })
+
+    return jsonify({
+        "session_id": session_id,
+        "questions": questions
+    }), 200

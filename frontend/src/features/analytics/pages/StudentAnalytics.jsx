@@ -240,7 +240,7 @@ const StudentAnalytics = () => {
 
         {/* WEAK AREAS */}
         <div className="mid-section-grid">
-          <section className="card weak-areas">
+          <section className="card weak-areas equal-height">
             <div className="card-header-stack">
               <h3><AlertCircle size={16} /> Weak Areas</h3>
             </div>
@@ -283,7 +283,7 @@ const StudentAnalytics = () => {
         </div>
 
         {/* QUESTIONS */}
-        <section className="card table-card">
+        <section className="card table-card equal-height">
           <div className="card-header-stack">
             <h3><HelpCircle size={16} /> Question Review</h3>
           </div>

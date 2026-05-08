@@ -17,6 +17,9 @@ export const pauseSession = (sessionId) =>
 export const resumeSession = (sessionId) =>
   api.post(`/sessions/${sessionId}/resume`);
 
+export const endSegment = (sessionId) =>
+  api.post(`/sessions/${sessionId}/end-segment`);
+
 export const stopSession = (sessionId) =>
   api.post(`/sessions/${sessionId}/stop`);
 
