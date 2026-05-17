@@ -389,10 +389,32 @@ setSessionStartTime(null);
   };
 
   const handleResume = async () => {
-    if (!activeSessionId) return;
-    await api.post(`/sessions/${activeSessionId}/resume`);
+
+  if (!activeSessionId) {
+    return;
+  }
+
+  try {
+
+    stopRecording(true);
+
+    await api.post(
+      `/sessions/${activeSessionId}/resume`
+    );
+
     setShowQuizPrompt(false);
-  };
+
+    // socket session_state event
+    // will restart recording
+
+  } catch (err) {
+
+    console.error(
+      "Resume failed",
+      err
+    );
+  }
+};
 
   const handleEndSegment = async () => {
 
@@ -406,7 +428,10 @@ setSessionStartTime(null);
 
     await endSegment(activeSessionId);
 
-    startRecording(activeSessionId);
+    // IMPORTANT:
+    // DO NOT manually restart recording here.
+    // Socket session_state events already
+    // restart recording automatically.
 
   } catch (err) {
 

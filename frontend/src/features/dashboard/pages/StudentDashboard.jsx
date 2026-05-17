@@ -69,6 +69,7 @@ const StudentDashboard = () => {
   const [currentPartition, setCurrentPartition] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
   const [partitionEndTime, setPartitionEndTime] = useState(null);
+  const [partitionStartTime, setPartitionStartTime] = useState(null);
   
   // Quiz & UI State
   const [showQuiz, setShowQuiz] = useState(false);
@@ -211,7 +212,8 @@ const StudentDashboard = () => {
       const data = res.data;
       setSessionStatus(data.status);
       setCurrentPartition(data.current_partition_index);
-      setPartitionEndTime(data.end_time);
+      setPartitionStartTime(data.start_time);
+setPartitionEndTime(data.end_time);
     } catch (err) {
       console.error("Sync failed:", err);
     }
@@ -301,8 +303,14 @@ const StudentDashboard = () => {
 
       const now = Math.floor(Date.now() / 1000);
       const drift = now - data.server_time;
-      const correctedEnd = data.end_time ? data.end_time + drift : null;
-      setPartitionEndTime(correctedEnd);
+      const correctedEnd =
+  data.end_time ? data.end_time + drift : null;
+
+const correctedStart =
+  data.start_time ? data.start_time + drift : null;
+
+setPartitionStartTime(correctedStart);
+setPartitionEndTime(correctedEnd);
     };
 
     const handleCompleted = (data) => {
@@ -336,20 +344,50 @@ const StudentDashboard = () => {
   }, [activeSessionId]);
 
   // =========================
-  // TIMER TICK
-  // =========================
-  useEffect(() => {
-    if (!partitionEndTime || sessionStatus !== "active") return;
+// TIMER TICK
+// =========================
+useEffect(() => {
 
-    const updateTimer = () => {
-      const now = Math.floor(Date.now() / 1000);
-      setTimeLeft(Math.max(partitionEndTime - now, 0));
-    };
+  if (sessionStatus !== "active") return;
 
-    updateTimer();
-    intervalRef.current = setInterval(updateTimer, 500);
-    return () => clearInterval(intervalRef.current);
-  }, [partitionEndTime, sessionStatus]);
+  const updateTimer = () => {
+
+    const now = Math.floor(Date.now() / 1000);
+
+    // =====================================
+    // PARTITIONED MODE (COUNTDOWN)
+    // =====================================
+    if (partitionEndTime) {
+
+      setTimeLeft(
+        Math.max(partitionEndTime - now, 0)
+      );
+
+      return;
+    }
+
+    // =====================================
+    // FLUID MODE (ELAPSED TIMER)
+    // =====================================
+    if (partitionStartTime) {
+
+      setTimeLeft(
+        Math.max(now - partitionStartTime, 0)
+      );
+    }
+  };
+
+  updateTimer();
+
+  intervalRef.current = setInterval(updateTimer, 500);
+
+  return () => clearInterval(intervalRef.current);
+
+}, [
+  partitionEndTime,
+  partitionStartTime,
+  sessionStatus
+]);
 
   // =========================
   // HANDLERS

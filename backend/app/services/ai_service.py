@@ -3,33 +3,27 @@ import requests
 import time
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+OPENROUTER_URL = (
+    "https://openrouter.ai/api/v1/chat/completions"
+)
 
 ALLOWED_MODELS = {
-    # stable free models
-    "google/gemma-4-26b-a4b-it:free",
-    "google/gemma-4-31b-it:free",
-    "minimax/minimax-m2.5:free",
 
-    # reliable paid fallbacks
+    # reliable models only
     "google/gemini-2.0-flash-lite-001",
     "deepseek/deepseek-chat",
 }
 
 SUMMARY_MODEL_CHAIN = [
-    # fast + reliable free models
-    "google/gemma-4-26b-a4b-it:free",
-    "google/gemma-4-31b-it:free",
 
-    # paid fallback
+    # transcript cleanup
     "google/gemini-2.0-flash-lite-001",
 ]
 
 QUIZ_MODEL_CHAIN = [
-    # free first
-    "minimax/minimax-m2.5:free",
 
-    # reliable paid fallback
+    # quiz generation
     "deepseek/deepseek-chat",
 ]
 
@@ -38,20 +32,43 @@ class AIServiceError(Exception):
     pass
 
 
-def call_llm(messages, model, temperature=0.3, max_tokens=800, retries=1):
+def call_llm(
+    messages,
+    model,
+    temperature=0.3,
+    max_tokens=800,
+    retries=2
+):
 
     if model not in ALLOWED_MODELS:
-        raise AIServiceError(f"Blocked model: {model}")
 
-    total_chars = sum(len(m.get("content", "")) for m in messages)
+        raise AIServiceError(
+            f"Blocked model: {model}"
+        )
 
-    print(f"[LLM CALL] model={model} chars={total_chars}")
+    total_chars = sum(
+        len(m.get("content", ""))
+        for m in messages
+    )
+
+    print(
+        f"[LLM CALL] "
+        f"model={model} "
+        f"chars={total_chars}"
+    )
 
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://aibacls.app",
-        "X-Title": "AIBACLS",
+        "Authorization":
+            f"Bearer {OPENROUTER_API_KEY}",
+
+        "Content-Type":
+            "application/json",
+
+        "HTTP-Referer":
+            "https://aibacls.app",
+
+        "X-Title":
+            "AIBACLS",
     }
 
     payload = {
@@ -71,88 +88,85 @@ def call_llm(messages, model, temperature=0.3, max_tokens=800, retries=1):
                 OPENROUTER_URL,
                 headers=headers,
                 json=payload,
-                timeout=20,  # reduced from 60
+                timeout=25,
             )
 
             if response.status_code != 200:
 
-                error_body = response.json()
+                try:
+                    error_body = response.json()
+                except Exception:
+                    error_body = response.text
 
-                print(f"[OPENROUTER ERROR] {error_body}")
-
-                last_error = error_body.get(
-                    "error",
-                    {}
-                ).get(
-                    "message",
-                    "Unknown error"
+                print(
+                    f"[OPENROUTER ERROR] "
+                    f"{error_body}"
                 )
 
-                # skip retries for overloaded free models
-                if response.status_code == 429 and ":free" in model:
-                    raise AIServiceError(
-                        f"Free model overloaded: {model}"
-                    )
-
-                # skip retries for dead models
-                if response.status_code == 404:
-                    raise AIServiceError(
-                        f"No endpoint available: {model}"
-                    )
+                last_error = str(error_body)
 
                 raise AIServiceError(
-                    f"HTTP {response.status_code}: {last_error}"
+                    f"HTTP {response.status_code}"
                 )
 
             data = response.json()
 
-            content = data["choices"][0]["message"]["content"]
+            content = (
+                data["choices"][0]
+                ["message"]["content"]
+            )
 
-            if not content or not content.strip():
-                raise AIServiceError("Empty response from model")
+            if (
+                not content or
+                not content.strip()
+            ):
+
+                raise AIServiceError(
+                    "Empty response from model"
+                )
 
             return content.strip()
 
-        except AIServiceError as e:
-
-            # don't retry overloaded/dead free models
-            if (
-                "Free model overloaded" in str(e)
-                or "No endpoint available" in str(e)
-            ):
-                raise
-
-            if attempt < retries:
-
-                wait = 1.5 * (attempt + 1)
-
-                print(
-                    f"[RETRY] attempt {attempt + 1}/{retries} after {wait}s"
-                )
-
-                time.sleep(wait)
-
-            else:
-
-                raise AIServiceError(
-                    f"All {retries + 1} attempts failed for {model}. "
-                    f"Last error: {last_error}"
-                )
-
         except requests.exceptions.Timeout:
 
-            raise AIServiceError(
-                f"Request timed out after 20s (model={model})"
-            )
+            last_error = "Request timeout"
 
         except requests.exceptions.RequestException as e:
 
+            last_error = f"Network error: {str(e)}"
+
+        except AIServiceError as e:
+
+            last_error = str(e)
+
+        # retry
+        if attempt < retries:
+
+            wait = 2 * (attempt + 1)
+
+            print(
+                f"[RETRY] "
+                f"{attempt + 1}/{retries} "
+                f"waiting {wait}s"
+            )
+
+            time.sleep(wait)
+
+        else:
+
             raise AIServiceError(
-                f"Network error: {str(e)}"
+                f"All attempts failed for "
+                f"{model}. "
+                f"Last error: {last_error}"
             )
 
 
-def call_with_fallback(messages, model_chain, temperature=0.3, max_tokens=800):
+def call_with_fallback(
+    messages,
+    model_chain,
+    temperature=0.3,
+    max_tokens=800
+):
 
     for model in model_chain:
 
@@ -171,11 +185,17 @@ def call_with_fallback(messages, model_chain, temperature=0.3, max_tokens=800):
 
         except AIServiceError as e:
 
-            print(f"[MODEL FAILED] {model} -> {str(e)}")
+            print(
+                f"[MODEL FAILED] "
+                f"{model} -> {str(e)}"
+            )
 
             continue
 
-    raise AIServiceError(f"All models failed. Chain: {model_chain}")
+    raise AIServiceError(
+        f"All models failed. "
+        f"Chain: {model_chain}"
+    )
 
 
 def call_gemini(messages):

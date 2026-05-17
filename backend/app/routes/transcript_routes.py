@@ -26,12 +26,16 @@ executor = ThreadPoolExecutor(max_workers=4)  # limits parallel processing
 # background task: convert + transcribe + store + emit
 def process_audio_chunk(app, filepath, partition_id, session_id):
 
-    with app.app_context():  # required for DB access in background thread
+    with app.app_context():
 
-        wav_path = filepath.replace(".webm", ".wav")  # convert to wav
+        wav_path = filepath.replace(".webm", ".wav")
 
         try:
-            # convert to 16kHz mono wav (Whisper requirement)
+            # Skip corrupt or near-empty chunks (missing EBML header etc.)
+            if not os.path.exists(filepath) or os.path.getsize(filepath) < 1000:
+                print(f"[SKIP] Chunk too small or missing: {filepath}")
+                return
+
             result = subprocess.run(
                 [
                     "ffmpeg",
@@ -50,16 +54,20 @@ def process_audio_chunk(app, filepath, partition_id, session_id):
                 print(result.stderr.decode())
                 return
 
-            text = transcribe_audio(wav_path)  # STT using Whisper
+            text = transcribe_audio(wav_path)
 
-            segment = store_segment(partition_id, text)  # save transcript chunk
+            # Skip empty transcripts — don't store or emit
+            if not text or not text.strip():
+                print("[SKIP] Empty transcript, not storing.")
+                return
+
+            segment = store_segment(partition_id, text)
 
             print("\n==============================")
             print("TRANSCRIPT SEGMENT")
             print(text)
             print("==============================\n")
 
-            # push to frontend via socket
             socketio.emit(
                 "transcript_segment",
                 {
@@ -71,10 +79,9 @@ def process_audio_chunk(app, filepath, partition_id, session_id):
 
         except Exception:
             print("Audio processing error:")
-            traceback.print_exc()  # debug errors
+            traceback.print_exc()
 
         finally:
-            # cleanup temp files
             if os.path.exists(filepath):
                 os.remove(filepath)
 

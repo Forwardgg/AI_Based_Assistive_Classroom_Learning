@@ -241,6 +241,26 @@ def start_session(session_id):
 
     session.status = "active"
 
+    # =========================================
+    # PARTITIONED MODE
+    # =========================================
+    if session.mode == "partitioned":
+
+        first_partition = (
+            SessionPartition.query
+            .filter_by(
+                session_id=session.id,
+                partition_index=1
+            )
+            .first()
+        )
+
+        if first_partition:
+            session.current_partition_index = 1
+
+    # =========================================
+    # FLUID MODE
+    # =========================================
     if session.mode == "fluid":
 
         first_partition = SessionPartition(
@@ -270,7 +290,6 @@ def start_session(session_id):
     socketio.start_background_task(run_session_timer, app, session_id)
 
     return jsonify({"message": "Session started"}), 200
-
 
 # ─────────────────────────────────────────────
 # POST /<session_id>/pause
@@ -315,7 +334,6 @@ def resume_session(session_id):
     # =========================================
     # FLUID MODE
     # =========================================
-
     if session.mode == "fluid":
 
         previous_partition = (
@@ -334,7 +352,6 @@ def resume_session(session_id):
             # =====================================
             # SESSION COMPLETED
             # =====================================
-
             if next_start >= session.duration_minutes:
 
                 session.status = "completed"
@@ -357,7 +374,6 @@ def resume_session(session_id):
             # =====================================
             # CREATE NEXT SEGMENT
             # =====================================
-
             next_partition = SessionPartition(
                 session_id=session.id,
 
@@ -379,16 +395,20 @@ def resume_session(session_id):
 
             db.session.add(next_partition)
 
+            # IMPORTANT:
+            # force INSERT immediately
+            db.session.flush()
+
             session.current_partition_index = (
                 next_partition.partition_index
             )
 
             session.partition_start_time = int(time.time())
+            session.partition_end_time = None
 
     # =========================================
     # RESUME SESSION
     # =========================================
-
     session.status = "active"
 
     db.session.commit()
@@ -404,7 +424,6 @@ def resume_session(session_id):
     return jsonify({
         "message": "Resumed"
     }), 200
-
 
 @session_bp.route("/<int:session_id>/end-segment", methods=["POST"])
 @jwt_required()
@@ -756,6 +775,7 @@ def run_session_timer(app, session_id):
         # =====================================================
 
         start_time = int(time.time())
+        total_duration_seconds = session.duration_minutes * 60
 
         session.partition_start_time = start_time
         session.partition_end_time = None
@@ -783,11 +803,10 @@ def run_session_timer(app, session_id):
 
             if pause_start is not None:
 
-                pause_duration = (
-                    int(time.time()) - pause_start
-                )
-
+                pause_duration = int(time.time()) - pause_start
                 start_time += pause_duration
+
+                pause_start = None
 
                 session.partition_start_time = start_time
 
@@ -795,9 +814,64 @@ def run_session_timer(app, session_id):
 
                 emit_session_state(session_id, room)
 
-                pause_start = None
+            # ── auto-stop when total duration reached ──
+            elapsed = int(time.time()) - start_time
+            if elapsed >= total_duration_seconds:
+                break
 
             socketio.sleep(0.2)
+
+        # ── time is up, finalize and complete ──
+        if not session_controls.get(session_id, {}).get("stopped"):
+
+            session_controls[session_id]["stopped"] = True
+
+            current_partition = (
+                SessionPartition.query
+                .filter_by(
+                    session_id=session_id,
+                    partition_index=session.current_partition_index
+                )
+                .first()
+            )
+
+            if current_partition:
+
+                elapsed_minutes = max(
+                    current_partition.start_minute + 1,
+                    int(
+                        (
+                            int(time.time()) -
+                            session.partition_start_time
+                        ) / 60
+                    )
+                )
+
+                current_partition.end_minute = elapsed_minutes
+
+                db.session.commit()
+
+                finalize_partition_transcript(current_partition.id)
+
+                socketio.emit(
+                    "partition_finished",
+                    {
+                        "session_id": session_id,
+                        "partition_index": current_partition.partition_index,
+                        "partition_id": current_partition.id
+                    },
+                    room=room
+                )
+
+            session.status = "completed"
+
+            session.current_partition_index = None
+            session.partition_start_time = None
+            session.partition_end_time = None
+
+            db.session.commit()
+
+            emit_session_state(session_id, room)
 
 # ─────────────────────────────────────────────
 # GET /<session_id>
